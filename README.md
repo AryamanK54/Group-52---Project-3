@@ -115,6 +115,5 @@ What changed from the specification:
 
 1. **Design review.** Claude reviewed our system diagram and helped us talk through the deque-versus-queue and flag-versus-remove decisions.
 2. **Specification text.** Claude helped draft the method-signature and validation sections of the spec from the system diagram, which we then edited.
-3. **Code and tests.** Claude drafted the model classes, the console views, the controller, and the test files from our spec and diagram. Each owner read over their files, and we ran the tests ourselves.
-4. **Integration check.** Because the files were drafted separately, they did not compile together at first. We used Claude Code to compile the whole project and run every test. It found five mismatches between files (a stray package declaration, the missing CANCELLED status, missing quantity constants, a renamed getter, and a different `StatusInfo` constructor) and one real bug (the model accepted a quantity of 100). With our approval it made those six fixes, after which all 144 tests passed.
-5. **README.** Claude drafted this README from our spec, the code, and the test results, and we edited it.
+3. **Integration check.** Because the files were drafted separately, they did not compile together at first. We used Claude Code to compile the whole project and run every test. It found five mismatches between files (a stray package declaration, the missing CANCELLED status, missing quantity constants, a renamed getter, and a different `StatusInfo` constructor) and one real bug (the model accepted a quantity of 100).
+

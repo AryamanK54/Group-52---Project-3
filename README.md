@@ -5,8 +5,7 @@ Repo for CS 2114, project 3 (Group 52). Order Up! is ordering software for a foo
 
 - **Program:** run `OrderUpApp.main`. The main menu offers: 1 start a new order, 2 add an item, 3 submit the order, 4 show the next order (kitchen), 5 complete the next order (kitchen), 6 check an order's status (customer), 7 or `q` to quit.
 - **Placing an order takes three steps:** start it (1), add one or more items (2), then submit it (3). Only a submitted order gets a ticket number and appears in the kitchen line (4).
-- **Model on its own (no view):** the model is run through its tests. In Eclipse, right-click `KitchenQueueTest` or `OrderUpModelTest` and choose Run As > JUnit Test. `KitchenQueueTest` exercises the queue's core methods (`enqueue`, `addRemakeToFront`, `dequeueFront`, `peekFront`, `size`, `positionOf`), and `OrderUpModelTest` drives a whole order from start to pickup through `OrderUpModel`. `MenuItemTest`, `OrderTest`, and `OrderBookTest` run the same way. None of these five creates a view or a controller.
-- **Tests:** there are six test classes (`MenuItemTest`, `OrderTest`, `KitchenQueueTest`, `OrderBookTest`, `OrderUpModelTest`, `OrderUpControllerTest`), 144 tests in all, and they all pass. `OrderBookTest`, `OrderUpModelTest`, and `OrderUpControllerTest` extend `student.TestCase`, which needs Java 17 (the JRE bundled with Eclipse). On Java 18 or later they fail before running, because `student.jar` installs a Security Manager and those versions no longer allow it by default. Java 18 to 23 allow it again with the VM argument `-Djava.security.manager=allow`. The other three use JUnit 5, so Eclipse needs JUnit 5 on the build path (Build Path > Add Libraries > JUnit > JUnit 5).
+- **Tests:** there are six test classes (`MenuItemTest`, `OrderTest`, `KitchenQueueTest`, `OrderBookTest`, `OrderUpModelTest`, `OrderUpControllerTest`), 144 tests in all, and they all pass. Three of them extend `student.TestCase`, which needs Java 17 (the JRE bundled with Eclipse). On Java 24 or later they fail before running, because `student.jar` installs a Security Manager and those versions removed it. The other three use JUnit 5, so Eclipse needs JUnit 5 on the build path.
 
 ## Reflection
 What changed from the specification:
@@ -56,19 +55,21 @@ What changed from the specification:
 ## Next Steps
 
 - **What is left to finish the MVP**, in order:
-  1. Make the cashier flow clearer: say what to do after starting an order, and add a way to view the current order before submitting. _Owners: Aryaman (the `CashierView` wording and a method to show the current order), Rishad (a read-only getter for the draft in `OrderUpModel` and a controller handler and menu option for it)._
-  2. Have the controller use `MainMenuView` (`showMainMenu`, `promptChoice`, `showGoodbye`) for the main menu, or delete it. _Owner: Rishad._
-  3. Run the full flow by hand (cashier places an order, cook completes it, customer checks status) plus every bad-input case in the validation list, and fix what breaks. _Owners: Vanessa runs it and records what breaks; each fix goes to the owner of the file it is in._
-  4. Build the three JavaFX views as display-only classes that get everything from the controller, then hook each screen's buttons to controller methods. _Owners: Aryaman (the views), Rishad (hooking the buttons to the controller)._
+  1. Make the cashier flow clearer: say what to do after starting an order, and add a way to view the current order before submitting.
+  2. Have the controller use `MainMenuView` for the main menu, or delete it.
+  3. Run the full flow by hand (cashier places an order, cook completes it, customer checks status) plus every bad-input case in the validation list, and fix what breaks.
+  4. Build the three JavaFX views as display-only classes that get everything from the controller, then hook each screen's buttons to controller methods.
 
 - **Our change feature: rush orders.** The cashier can mark an order as "rush." A rush order goes to the front of the line, behind any remakes already at the front but ahead of normal orders.
 
-  _Predicted to change:_
-  - **Model:** `Order` gets a `rush` boolean field with an `isRush()` getter, set through the constructor. `KitchenQueue` gets a new `enqueueRush(Order)` method that holds the insertion rule. `OrderUpModel` gets a `submitOrder(boolean rush)` overload that calls `enqueueRush` instead of `enqueue`; the existing `submitOrder()` calls it with false.
-  - **Controller:** `OrderUpController` gets a `handleSubmitOrder(boolean rush)` overload that passes the flag to the model, and its menu option for submitting asks the rush question first.
-  - **View:** `CashierView` gets a new `promptRush()` method that returns what the cashier typed, like its other prompts.
+- **Queue Implementation** The project requires our own implementation for the queue data structure, not using a premade library. This discrepancy in understanding is something we have to correct
 
-  _Predicted not to change:_ `KitchenView` and `CustomerStatusView`, because `showNextOrder` and `showStatus` already show whatever order is next and whatever position the controller passes in. In `KitchenQueue`, the existing `enqueue`, `addRemakeToFront`, `dequeueFront`, `peekFront`, `size`, and `positionOf` should not change, because a rush order sits in the same deque as every other order. In `OrderUpModel`, `completeNext`, `peekNext`, `waitingCount`, and `getStatus` should not change for the same reason. Also unchanged: `OrderBook`, `MenuItem`, `OrderItem`, `OrderStatus`, and `StatusInfo`. We will compare this prediction to what actually changes and report any difference.
+  _Predicted to change:_
+  - **Model:** `Order` gets a `rush` boolean field; `KitchenQueue` gets an insertion rule for rush orders; `OrderUpModel.submitOrder` gets a rush parameter or an overload.
+  - **Controller:** `handleSubmitOrder` (or a new `handleSubmitRush`) passes the flag along, plus a prompt for it.
+  - **View:** `CashierView` needs a rush prompt or toggle.
+
+  _Predicted not to change:_ `KitchenView` and `CustomerStatusView`, because they already show whatever order is next and whatever position the controller passes in. Also `OrderBook`, `MenuItem`, `OrderItem`, `OrderStatus`, and `StatusInfo`. We will compare this prediction to what actually changes and report any difference.
 
 - **Stretch goals**
   - **Committing to:** order cancellation, our primary stretch goal. The model side (`cancelOrder`, the CANCELLED status, queue skipping) is already built and tested, so the remaining work is a controller handler, a cancel option in the cashier view, and showing "Cancelled" in the customer view.
@@ -109,11 +110,12 @@ What changed from the specification:
 | `OrderBookTest.java` | Rishad | GenAI-drafted from our test plan; ran and reviewed by Rishad |
 | `OrderUpModelTest.java` | Rishad | GenAI-drafted from our test plan; ran and reviewed by Rishad |
 | `OrderUpControllerTest.java` | Rishad | GenAI-drafted from our test plan; ran and reviewed by Rishad |
-| `README.md` | Vanessa, Aryaman, Rishad | GenAI-drafted; revised by Vanessa, Aryaman, and Rishad |
+| `README.md` | Vanessa, Aryaman | GenAI-drafted; revised by Vanessa and Aryaman |
 
 ## GenAI Note
 
 1. **Design review.** Claude reviewed our system diagram and helped us talk through the deque-versus-queue and flag-versus-remove decisions.
 2. **Specification text.** Claude helped draft the method-signature and validation sections of the spec from the system diagram, which we then edited.
-3. **Integration check.** Because the files were drafted separately, they did not compile together at first. We used Claude Code to compile the whole project and run every test. It found five mismatches between files (a stray package declaration, the missing CANCELLED status, missing quantity constants, a renamed getter, and a different `StatusInfo` constructor) and one real bug (the model accepted a quantity of 100).
-
+3. **Code and tests.** Claude drafted the model classes, the console views, the controller, and the test files from our spec and diagram. Each owner read over their files, and we ran the tests ourselves.
+4. **Integration check.** Because the files were drafted separately, they did not compile together at first. We used Claude Code to compile the whole project and run every test. It found five mismatches between files (a stray package declaration, the missing CANCELLED status, missing quantity constants, a renamed getter, and a different `StatusInfo` constructor) and one real bug (the model accepted a quantity of 100). With our approval it made those six fixes, after which all 144 tests passed.
+5. **README.** Claude drafted this README from our spec, the code, and the test results, and we edited it.

@@ -85,19 +85,20 @@ What changed from the specification:
 | File | Who | How |
 | --- | --- | --- |
 | `OrderUpModel.java` | | copied from given file |
-| `KitchenQueue.java` | | GenAI-generated from our spec; reviewed by: Noah K| read over the code
-| `OrderBook.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
+| `KitchenQueue.java` | | GenAI-generated from our spec; reviewed by: Vanessa| read over the code
+| `OrderBook.java` | | GenAI-generated from our spec; reviewed by: Rishad| read over the code
 | `Order.java` | | GenAI-generated from our spec; reviewed by: Vanessa| read over the code
-| `OrderItem.java` | | GenAI-generated from our spec; reviewed by: Noah K| read over the code
-| `MenuItem.java` | | GenAI-generated from our spec; reviewed by: Jonathan| read over the code
-| `OrderStatus.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| `StatusInfo.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| `OrderUpModelTest.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| `OrderUpController.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| `CashierView.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| `KitchenView.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| `CustomerStatusView.java` | | GenAI-generated from our spec; reviewed by: Noah R| read over the code
-| Test files (`LinkedChainTest`, `RaffleTest`, `RaffleMenuTest`, `RaffleDataTest`) | | GenAI-generated from our test plan; reviewed by: Vanessa | ran the test files
+| `OrderItem.java` | | GenAI-generated from our spec; reviewed by: Vanessa| read over the code
+| `MenuItem.java` | | GenAI-generated from our spec; reviewed by: Vanessa| read over the code
+| `OrderStatus.java` | | GenAI-generated from our spec; reviewed by: Vanessa| read over the code
+| `StatusInfo.java` | | GenAI-generated from our spec; reviewed by: Vanessa| read over the code
+| `OrderUpModelTest.java` | | GenAI-generated from our spec; reviewed by: Rishad| read over the code
+| `OrderUpController.java` | | GenAI-generated from our spec; reviewed by: Rishad| read over the code
+| `CashierView.java` | | GenAI-generated from our spec; reviewed by: Aryaman| read over the code
+| `KitchenView.java` | | GenAI-generated from our spec; reviewed by: Aryaman| read over the code
+| `CustomerStatusView.java` | | GenAI-generated from our spec; reviewed by: Aryaman| read over the code
+| Test files (___) | | GenAI-generated from our test plan; reviewed by: Vanessa | ran the test files
+| Test files (___) | | GenAI-generated from our test plan; reviewed by: Rishad | ran the test files
 | `README.md` | | GenAI-drafted; revised by: Vanessa | filled in the gaps
 
 ## GenAI Note

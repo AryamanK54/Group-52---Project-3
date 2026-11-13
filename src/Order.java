@@ -10,6 +10,12 @@ import java.util.List;
  */
 public class Order {
 
+    /** The smallest quantity allowed for one line of an order. */
+    public static final int MIN_QTY = 1;
+
+    /** The largest quantity allowed for one line of an order. */
+    public static final int MAX_QTY = 99;
+
     private final int ticketNumber;
     private final List<OrderItem> items;
     private OrderStatus status;
@@ -29,8 +35,9 @@ public class Order {
      * Appends an item to the order.
      *
      * @param item the menu item; must not be null
-     * @param qty  the quantity; must be at least 1
-     * @throws IllegalArgumentException if item is null or qty is below 1
+     * @param qty  the quantity; must be from MIN_QTY to MAX_QTY
+     * @throws IllegalArgumentException if item is null or qty is outside
+     *                                  MIN_QTY to MAX_QTY
      */
     public void addItem(MenuItem item, int qty) {
         if (item == null) {

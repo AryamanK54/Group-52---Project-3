@@ -1,9 +1,10 @@
 /**
  * Pairs a menu item with the quantity ordered. Immutable.
  * <p>
- * This class only checks that the data is usable (non-null item, quantity of
- * at least 1). The 1-99 limit and the in-stock rule are business rules that
- * live in OrderUpModel.
+ * The quantity must be from Order.MIN_QTY to Order.MAX_QTY (1 to 99). This is
+ * the one place that range is enforced, so both Order.addItem and
+ * OrderUpModel.addToOrder reject a bad quantity through this constructor. The
+ * in-stock rule lives in OrderUpModel.
  */
 public class OrderItem {
 
@@ -12,22 +13,25 @@ public class OrderItem {
 
     /**
      * @param item     the menu item ordered; must not be null
-     * @param quantity how many were ordered; must be at least 1
-     * @throws IllegalArgumentException if item is null or quantity is below 1
+     * @param quantity how many were ordered; must be from Order.MIN_QTY to
+     *                 Order.MAX_QTY
+     * @throws IllegalArgumentException if item is null or quantity is outside
+     *                                  Order.MIN_QTY to Order.MAX_QTY
      */
     public OrderItem(MenuItem item, int quantity) {
         if (item == null) {
             throw new IllegalArgumentException("Order item must have a menu item");
         }
-        if (quantity < 1) {
-            throw new IllegalArgumentException("Quantity must be at least 1");
+        if (quantity < Order.MIN_QTY || quantity > Order.MAX_QTY) {
+            throw new IllegalArgumentException("Quantity must be from "
+                    + Order.MIN_QTY + " to " + Order.MAX_QTY);
         }
         this.item = item;
         this.quantity = quantity;
     }
 
     /** @return the menu item ordered */
-    public MenuItem getItem() {
+    public MenuItem getMenuItem() {
         return item;
     }
 

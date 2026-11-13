@@ -1,5 +1,3 @@
-package orderup.model;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.NoSuchElementException;

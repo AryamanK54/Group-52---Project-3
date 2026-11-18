@@ -1,5 +1,3 @@
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.NoSuchElementException;
 
 /**
@@ -13,7 +11,7 @@ import java.util.NoSuchElementException;
 public class KitchenQueue
 {
 
-    private final Deque<Order> orders = new ArrayDeque<>();
+    private final LinkedDeque<Order> orders = new LinkedDeque<>();
 
     /**
      * Adds a WAITING order to the back of the line.
@@ -41,7 +39,23 @@ public class KitchenQueue
     public void addRemakeToFront(Order o)
     {
         requireWaiting(o);
-        orders.addFirst(o);
+        orders.addFirstPriority(o);
+    }
+
+
+    /**
+     * Adds a WAITING rush order after any remakes and earlier rush orders, but
+     * ahead of all normal orders.
+     *
+     * @param o
+     *            the WAITING order to rush
+     * @throws IllegalArgumentException
+     *             if o is null or not WAITING
+     */
+    public void enqueueRush(Order o)
+    {
+        requireWaiting(o);
+        orders.addAfterPriority(o);
     }
 
 

@@ -307,4 +307,325 @@ class KitchenQueueTest
         assertNull(queue.peekFront());
         assertThrows(NoSuchElementException.class, () -> queue.dequeueFront());
     }
+
+
+    private static Order rush(int ticket)
+    {
+        return new Order(ticket, true);
+    }
+
+
+    /**
+     * Asserts the exact line: size, front, and 1-based position of every ticket
+     * in order.
+     */
+    private void assertLine(int... tickets)
+    {
+        assertEquals(tickets.length, queue.size());
+        assertEquals(tickets.length == 0, queue.isEmpty());
+        if (tickets.length > 0)
+        {
+            assertEquals(tickets[0], queue.peekFront().getTicketNumber());
+        }
+        else
+        {
+            assertNull(queue.peekFront());
+        }
+        for (int i = 0; i < tickets.length; i++)
+        {
+            assertEquals(i + 1, queue.positionOf(tickets[i]));
+        }
+    }
+
+    // ---------- enqueueRush ----------
+
+
+    /**
+     * Tests that a rush order goes ahead of normal orders.
+     */
+    @Test
+    void rushGoesAheadOfNormalOrders()
+    {
+        Order a = order(1);
+        Order b = order(2);
+        Order r = rush(3);
+        queue.enqueue(a);
+        queue.enqueue(b);
+        queue.enqueueRush(r);
+        assertSame(r, queue.dequeueFront());
+        assertSame(a, queue.dequeueFront());
+        assertSame(b, queue.dequeueFront());
+    }
+
+
+    /**
+     * Tests that a rush order goes behind a remake.
+     */
+    @Test
+    void rushGoesBehindRemake()
+    {
+        Order a = order(1);
+        Order remake = order(2);
+        Order r = rush(3);
+        queue.enqueue(a);
+        queue.addRemakeToFront(remake);
+        queue.enqueueRush(r);
+        assertSame(remake, queue.dequeueFront());
+        assertSame(r, queue.dequeueFront());
+        assertSame(a, queue.dequeueFront());
+    }
+
+
+    /**
+     * Tests that a rush order goes behind earlier rush orders.
+     */
+    @Test
+    void rushGoesBehindEarlierRushOrders()
+    {
+        Order r1 = rush(1);
+        Order r2 = rush(2);
+        Order r3 = rush(3);
+        Order n = order(4);
+        queue.enqueue(n);
+        queue.enqueueRush(r1);
+        queue.enqueueRush(r2);
+        queue.enqueueRush(r3);
+        assertSame(r1, queue.dequeueFront());
+        assertSame(r2, queue.dequeueFront());
+        assertSame(r3, queue.dequeueFront());
+        assertSame(n, queue.dequeueFront());
+    }
+
+
+    /**
+     * Tests the full layout [remakes][rush][normal], including a remake added
+     * after rush orders.
+     */
+    @Test
+    void lineIsRemakesThenRushThenNormal()
+    {
+        queue.enqueue(order(1));
+        queue.enqueueRush(rush(2));
+        queue.addRemakeToFront(order(3));
+        queue.enqueueRush(rush(4));
+        queue.enqueue(order(5));
+        queue.addRemakeToFront(order(6));
+        assertLine(6, 3, 2, 4, 1, 5);
+    }
+
+
+    /**
+     * Tests that a rush order into an empty queue becomes the only order.
+     */
+    @Test
+    void rushIntoEmptyQueueBecomesTheOnlyOrder()
+    {
+        Order r = rush(1);
+        queue.enqueueRush(r);
+        assertLine(1);
+        assertSame(r, queue.dequeueFront());
+        assertTrue(queue.isEmpty());
+        assertTrue(r.isRush());
+        assertFalse(order(2).isRush());
+    }
+
+
+    /**
+     * Tests that after the last rush order is served, the next rush order still
+     * goes ahead of the normal orders.
+     */
+    @Test
+    void rushAfterRushRegionDrainedStillGoesToFront()
+    {
+        queue.enqueue(order(1));
+        queue.enqueueRush(rush(2));
+        queue.dequeueFront();
+        queue.enqueueRush(rush(3));
+        assertLine(3, 1);
+    }
+
+
+    /**
+     * Tests that null or non-WAITING orders are rejected by enqueueRush and
+     * leave the queue unchanged.
+     */
+    @Test
+    void rushNullOrNonWaitingThrowsAndLeavesQueueUnchanged()
+    {
+        queue.enqueue(order(1));
+        Order ready = rush(2);
+        ready.setStatus(OrderStatus.READY);
+        Order cancelled = rush(3);
+        cancelled.setStatus(OrderStatus.CANCELLED);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> queue.enqueueRush(null));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> queue.enqueueRush(ready));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> queue.enqueueRush(cancelled));
+        assertLine(1);
+    }
+
+    // ---------- cancelled rush orders ----------
+
+
+    /**
+     * Tests that a cancelled rush order is skipped by peekFront, size,
+     * positionOf, and dequeueFront.
+     */
+    @Test
+    void cancelledRushOrderIsSkipped()
+    {
+        Order n = order(1);
+        Order r1 = rush(2);
+        Order r2 = rush(3);
+        queue.enqueue(n);
+        queue.enqueueRush(r1);
+        queue.enqueueRush(r2);
+        r1.setStatus(OrderStatus.CANCELLED);
+        assertLine(3, 1);
+        assertEquals(-1, queue.positionOf(2));
+        assertSame(r2, queue.dequeueFront());
+        assertSame(n, queue.dequeueFront());
+        assertTrue(queue.isEmpty());
+    }
+
+
+    /**
+     * Tests that cancelling the last rush order (the region boundary) does not
+     * break later rush insertion: a new rush order still goes ahead of normal
+     * orders.
+     */
+    @Test
+    void rushAfterCancelledBoundaryRushStillGoesAheadOfNormal()
+    {
+        Order n = order(1);
+        Order r1 = rush(2);
+        Order r2 = rush(3);
+        queue.enqueue(n);
+        queue.enqueueRush(r1);
+        r1.setStatus(OrderStatus.CANCELLED);
+        queue.enqueueRush(r2);
+        assertLine(3, 1);
+        assertSame(r2, queue.dequeueFront());
+        assertSame(n, queue.dequeueFront());
+    }
+
+
+    /**
+     * Tests that dequeueFront discards a cancelled rush order at the front and
+     * returns the next active order.
+     */
+    @Test
+    void cancelledRushAtFrontIsDiscardedByDequeue()
+    {
+        Order n = order(1);
+        Order r = rush(2);
+        queue.enqueue(n);
+        queue.enqueueRush(r);
+        r.setStatus(OrderStatus.CANCELLED);
+        assertSame(n, queue.dequeueFront());
+        queue.enqueueRush(rush(3));
+        assertLine(3);
+    }
+
+
+    /**
+     * Tests that a queue holding only a cancelled rush order acts empty.
+     */
+    @Test
+    void queueWithOnlyCancelledRushActsEmpty()
+    {
+        Order r = rush(1);
+        queue.enqueueRush(r);
+        r.setStatus(OrderStatus.CANCELLED);
+        assertLine();
+        assertThrows(NoSuchElementException.class, () -> queue.dequeueFront());
+    }
+
+    // ---------- interleaved sequences ----------
+
+
+    /**
+     * Tests an interleaved sequence of enqueue, rush, remake, and dequeue
+     * calls, checking the whole line after every step.
+     */
+    @Test
+    void interleavedEnqueueRushRemakeAndDequeueKeepCorrectOrder()
+    {
+        queue.enqueue(order(1));
+        queue.enqueue(order(2));
+        assertLine(1, 2);
+        queue.enqueueRush(rush(3));
+        assertLine(3, 1, 2);
+        queue.enqueue(order(4));
+        assertLine(3, 1, 2, 4);
+        queue.enqueueRush(rush(5));
+        assertLine(3, 5, 1, 2, 4);
+        queue.addRemakeToFront(order(6));
+        assertLine(6, 3, 5, 1, 2, 4);
+        assertEquals(6, queue.dequeueFront().getTicketNumber());
+        assertLine(3, 5, 1, 2, 4);
+        queue.enqueueRush(rush(7));
+        assertLine(3, 5, 7, 1, 2, 4);
+        assertEquals(3, queue.dequeueFront().getTicketNumber());
+        assertEquals(5, queue.dequeueFront().getTicketNumber());
+        assertEquals(7, queue.dequeueFront().getTicketNumber());
+        assertLine(1, 2, 4);
+        queue.enqueueRush(rush(8));
+        assertLine(8, 1, 2, 4);
+        queue.enqueue(order(9));
+        assertLine(8, 1, 2, 4, 9);
+        queue.enqueueRush(rush(10));
+        assertLine(8, 10, 1, 2, 4, 9);
+        assertEquals(8, queue.dequeueFront().getTicketNumber());
+        assertEquals(10, queue.dequeueFront().getTicketNumber());
+        assertLine(1, 2, 4, 9);
+        queue.addRemakeToFront(order(11));
+        assertLine(11, 1, 2, 4, 9);
+        queue.enqueueRush(rush(12));
+        assertLine(11, 12, 1, 2, 4, 9);
+        while (!queue.isEmpty())
+        {
+            queue.dequeueFront();
+        }
+        assertLine();
+    }
+
+
+    /**
+     * Tests an interleaved sequence that includes cancellations of rush and
+     * normal orders, checking the line after every step.
+     */
+    @Test
+    void interleavedSequenceWithCancellationsKeepsCorrectOrder()
+    {
+        Order n1 = order(1);
+        Order r2 = rush(2);
+        Order r3 = rush(3);
+        Order n4 = order(4);
+        queue.enqueue(n1);
+        queue.enqueueRush(r2);
+        queue.enqueueRush(r3);
+        queue.enqueue(n4);
+        assertLine(2, 3, 1, 4);
+        r3.setStatus(OrderStatus.CANCELLED);
+        assertLine(2, 1, 4);
+        queue.enqueueRush(rush(5));
+        assertLine(2, 5, 1, 4);
+        n1.setStatus(OrderStatus.CANCELLED);
+        assertLine(2, 5, 4);
+        assertEquals(2, queue.dequeueFront().getTicketNumber());
+        assertLine(5, 4);
+        assertEquals(5, queue.dequeueFront().getTicketNumber());
+        assertLine(4);
+        queue.enqueueRush(rush(6));
+        assertLine(6, 4);
+        assertEquals(6, queue.dequeueFront().getTicketNumber());
+        assertEquals(4, queue.dequeueFront().getTicketNumber());
+        assertLine();
+    }
 }

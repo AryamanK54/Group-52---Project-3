@@ -7,7 +7,7 @@ import student.TestCase;
  * controller, so the model is shown to work on its own.
  *
  * @author Syed Rishad
- * @version 2026.11.12
+ * @version 2026.11.18
  */
 public class OrderUpModelTest extends TestCase {
 
@@ -238,6 +238,166 @@ public class OrderUpModelTest extends TestCase {
         place(burger);
         assertFalse(canSubmit());
         assertEquals(1, model.waitingCount());
+    }
+
+
+    // ----------------------------------------------------------
+    // submitOrder: rush orders
+    // ----------------------------------------------------------
+
+    /**
+     * Submitting with rush set to false is the same as a regular submit.
+     */
+    public void testSubmitNotRush() {
+        int first = place(burger);
+        model.addToOrder(fries, 1);
+        int second = model.submitOrder(false);
+        assertEquals(first + 1, second);
+        assertFalse(model.peekNext().isRush());
+        assertEquals(2, model.getStatus(second).getPosition());
+        model.completeNext();
+        assertFalse(model.peekNext().isRush());
+    }
+
+
+    /**
+     * A rush order goes ahead of the regular orders already waiting.
+     */
+    public void testSubmitRush() {
+        int first = place(burger);
+        int second = place(fries);
+        int rush = placeRush(soda);
+        assertEquals(second + 1, rush);
+        assertTrue(model.peekNext().isRush());
+        assertEquals(OrderStatus.WAITING, model.getStatus(rush).getStatus());
+        assertEquals(1, model.getStatus(rush).getPosition());
+        assertEquals(2, model.getStatus(first).getPosition());
+        assertEquals(3, model.getStatus(second).getPosition());
+        assertEquals(3, model.waitingCount());
+        assertEquals(rush, model.completeNext().getTicketNumber());
+        assertEquals(first, model.completeNext().getTicketNumber());
+        assertEquals(second, model.completeNext().getTicketNumber());
+    }
+
+
+    /**
+     * A rush order into an empty line is simply next.
+     */
+    public void testSubmitRushEmptyLine() {
+        int rush = placeRush(burger);
+        int regular = place(fries);
+        assertEquals(rush, model.peekNext().getTicketNumber());
+        assertEquals(2, model.getStatus(regular).getPosition());
+    }
+
+
+    /**
+     * Two rush orders are made in the order they were submitted.
+     */
+    public void testTwoRushOrders() {
+        int regular = place(burger);
+        int firstRush = placeRush(fries);
+        int secondRush = placeRush(soda);
+        assertEquals(1, model.getStatus(firstRush).getPosition());
+        assertEquals(2, model.getStatus(secondRush).getPosition());
+        assertEquals(3, model.getStatus(regular).getPosition());
+    }
+
+
+    /**
+     * A rush order waits behind a remake that is already at the front.
+     */
+    public void testRushBehindRemake() {
+        int remade = place(burger);
+        int regular = place(fries);
+        model.completeNext();
+        model.remakeOrder(remade);
+        int rush = placeRush(soda);
+        assertEquals(1, model.getStatus(remade).getPosition());
+        assertEquals(2, model.getStatus(rush).getPosition());
+        assertEquals(3, model.getStatus(regular).getPosition());
+        assertEquals(remade, model.completeNext().getTicketNumber());
+        assertEquals(rush, model.completeNext().getTicketNumber());
+        assertEquals(regular, model.completeNext().getTicketNumber());
+    }
+
+
+    /**
+     * A remake that comes in after a rush order still goes to the very
+     * front.
+     */
+    public void testRemakeAheadOfRush() {
+        int remade = place(burger);
+        model.completeNext();
+        int regular = place(fries);
+        int rush = placeRush(soda);
+        model.remakeOrder(remade);
+        assertEquals(1, model.getStatus(remade).getPosition());
+        assertEquals(2, model.getStatus(rush).getPosition());
+        assertEquals(3, model.getStatus(regular).getPosition());
+    }
+
+
+    /**
+     * Once the rush orders have been made, a new rush order still goes
+     * ahead of the regular orders.
+     */
+    public void testRushAfterRushOrdersAreDone() {
+        int firstRush = placeRush(burger);
+        int regular = place(fries);
+        assertEquals(firstRush, model.completeNext().getTicketNumber());
+        int secondRush = placeRush(soda);
+        assertEquals(1, model.getStatus(secondRush).getPosition());
+        assertEquals(2, model.getStatus(regular).getPosition());
+    }
+
+
+    /**
+     * A rush order can be cancelled, and the line skips it.
+     */
+    public void testCancelRushOrder() {
+        int regular = place(burger);
+        int firstRush = placeRush(fries);
+        int secondRush = placeRush(soda);
+        model.cancelOrder(firstRush);
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(firstRush)
+            .getStatus());
+        assertEquals(StatusInfo.NOT_IN_LINE, model.getStatus(firstRush)
+            .getPosition());
+        assertEquals(2, model.waitingCount());
+        assertEquals(1, model.getStatus(secondRush).getPosition());
+        assertEquals(2, model.getStatus(regular).getPosition());
+        assertEquals(secondRush, model.completeNext().getTicketNumber());
+        assertEquals(regular, model.completeNext().getTicketNumber());
+    }
+
+
+    /**
+     * An empty rush order throws, creates nothing, and does not use up a
+     * ticket.
+     */
+    public void testSubmitEmptyRushOrder() {
+        Exception thrown = null;
+        try {
+            model.submitOrder(true);
+        }
+        catch (IllegalStateException e) {
+            thrown = e;
+        }
+        assertNotNull(thrown);
+        assertEquals(0, model.waitingCount());
+        assertEquals(OrderBook.FIRST_TICKET, placeRush(burger));
+    }
+
+
+    /**
+     * After a rush submit the next order starts empty.
+     */
+    public void testRushSubmitClearsOrder() {
+        placeRush(burger);
+        assertFalse(canSubmit());
+        assertEquals(1, model.waitingCount());
+        assertEquals(1, model.peekNext().getItems().size());
     }
 
 
@@ -509,6 +669,19 @@ public class OrderUpModelTest extends TestCase {
     private int place(MenuItem item) {
         model.addToOrder(item, 1);
         return model.submitOrder();
+    }
+
+
+    /**
+     * Submits a rush order for one of an item.
+     *
+     * @param item
+     *            the item to order
+     * @return the new order's ticket number
+     */
+    private int placeRush(MenuItem item) {
+        model.addToOrder(item, 1);
+        return model.submitOrder(true);
     }
 
 

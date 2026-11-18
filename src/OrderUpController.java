@@ -4,7 +4,7 @@ import java.util.Scanner;
 /**
  *
  * @author Syed Rishad
- * @version 2026.11.12
+ * @version 2026.11.18
  */
 public class OrderUpController {
 
@@ -39,6 +39,32 @@ public class OrderUpController {
     /** Shown if something fails that the handlers did not expect. */
     static final String UNEXPECTED =
         "Error: Something went wrong. Please try again.";
+
+    /** Shown when a ticket number to cancel or remake was never issued. */
+    static final String NO_SUCH_ORDER =
+        "There is no order with that ticket number.";
+
+    /** Shown when the order to cancel is no longer waiting. */
+    static final String NOT_WAITING =
+        "Only an order that is still waiting can be cancelled.";
+
+    /** Shown when the order to remake has not been completed. */
+    static final String NOT_READY =
+        "Only an order that is ready can be sent back to be remade.";
+
+    /**
+     * Shown after a rush order is placed. The controller prints this itself
+     * for now, because CashierView has no method for it yet.
+     */
+    static final String RUSH_NOTE =
+        "Rush order: it goes ahead of the regular orders.";
+
+    /**
+     * Shown, followed by the ticket number, after an order is cancelled. The
+     * controller prints this itself for now, because CashierView has no
+     * method for it yet.
+     */
+    static final String ORDER_CANCELLED = "Order cancelled. Ticket #";
 
     /** Shown when the program ends. */
     static final String GOODBYE = "Goodbye!";
@@ -162,20 +188,60 @@ public class OrderUpController {
 
 
     /**
-     * Submits the order being built and shows the cashier the ticket
-     * number. An empty order is reported to the cashier and nothing is
-     * submitted.
+     * Submits the order being built as a regular order and shows the
+     * cashier the ticket number. An empty order is reported to the cashier
+     * and nothing is submitted.
      */
     public void handleSubmitOrder() {
+        handleSubmitOrder(false);
+    }
+
+
+    /**
+     * Submits the order being built and shows the cashier the ticket
+     * number. A rush order is made before the regular orders. An empty
+     * order is reported to the cashier and nothing is submitted.
+     *
+     * @param rush
+     *            true to submit the order as a rush order
+     */
+    public void handleSubmitOrder(boolean rush) {
         int ticket;
         try {
-            ticket = model.submitOrder();
+            ticket = model.submitOrder(rush);
         }
         catch (IllegalStateException e) {
             cashierView.showError(EMPTY_ORDER);
             return;
         }
         cashierView.showOrderPlaced(ticket);
+        if (rush) {
+            out.println(RUSH_NOTE);
+        }
+    }
+
+
+    /**
+     * Cancels an order that is still waiting. A ticket number that was
+     * never issued, or an order that is already ready or cancelled, is
+     * reported to the cashier and nothing changes.
+     *
+     * @param ticket
+     *            the ticket number of the order to cancel
+     */
+    public void handleCancelOrder(int ticket) {
+        try {
+            model.cancelOrder(ticket);
+        }
+        catch (IllegalArgumentException e) {
+            cashierView.showError(NO_SUCH_ORDER);
+            return;
+        }
+        catch (IllegalStateException e) {
+            cashierView.showError(NOT_WAITING);
+            return;
+        }
+        out.println(ORDER_CANCELLED + ticket);
     }
 
 
@@ -204,6 +270,31 @@ public class OrderUpController {
         }
         Order done = model.completeNext();
         kitchenView.showOrderCompleted(done);
+        showLine();
+    }
+
+
+    /**
+     * Sends a finished order back to the front of the line to be made
+     * again, then shows the cook the line. A ticket number that was never
+     * issued, or an order that is not ready, is reported to the cook and
+     * nothing changes.
+     *
+     * @param ticket
+     *            the ticket number of the order to remake
+     */
+    public void handleRemakeOrder(int ticket) {
+        try {
+            model.remakeOrder(ticket);
+        }
+        catch (IllegalArgumentException e) {
+            kitchenView.showError(NO_SUCH_ORDER);
+            return;
+        }
+        catch (IllegalStateException e) {
+            kitchenView.showError(NOT_READY);
+            return;
+        }
         showLine();
     }
 
@@ -265,7 +356,10 @@ public class OrderUpController {
         out.println("  4) Kitchen: show the next order");
         out.println("  5) Kitchen: complete the next order");
         out.println("  6) Customer: check an order");
-        out.println("  7) Quit");
+        out.println("  7) Cashier: submit the order as a rush order");
+        out.println("  8) Cashier: cancel an order");
+        out.println("  9) Kitchen: remake a finished order");
+        out.println("  0) Quit");
         out.print("Choose an option: ");
         out.flush();
     }
@@ -300,6 +394,15 @@ public class OrderUpController {
                 lookUpFromPrompt();
                 break;
             case "7":
+                handleSubmitOrder(true);
+                break;
+            case "8":
+                cancelFromPrompt();
+                break;
+            case "9":
+                remakeFromPrompt();
+                break;
+            case "0":
             case "q":
                 keepGoing = false;
                 break;
@@ -332,24 +435,55 @@ public class OrderUpController {
 
     /**
      * Asks the customer for a ticket number and shows that order's status.
-     * The prompt is repeated after a blank or non-numeric entry.
      */
     private void lookUpFromPrompt() {
-        Integer ticket = null;
-        int tries = 0;
-        while (ticket == null && tries < MAX_TRIES) {
-            ticket = parseWholeNumber(customerView.promptTicket());
-            if (ticket == null) {
-                customerView.showError(NOT_A_NUMBER);
-            }
-            tries++;
-        }
-        if (ticket == null) {
-            customerView.showError(TOO_MANY_TRIES);
-        }
-        else {
+        Integer ticket = promptForTicket();
+        if (ticket != null) {
             handleStatusLookup(ticket.intValue());
         }
+    }
+
+
+    /**
+     * Asks the cashier for a ticket number and cancels that order.
+     */
+    private void cancelFromPrompt() {
+        Integer ticket = promptForTicket();
+        if (ticket != null) {
+            handleCancelOrder(ticket.intValue());
+        }
+    }
+
+
+    /**
+     * Asks the cook for a ticket number and sends that order back to be
+     * made again.
+     */
+    private void remakeFromPrompt() {
+        Integer ticket = promptForTicket();
+        if (ticket != null) {
+            handleRemakeOrder(ticket.intValue());
+        }
+    }
+
+
+    /**
+     * Asks for a ticket number until a whole number is entered. The prompt
+     * is the customer view's, which is the only view that asks for a
+     * ticket, so the cashier and the cook share it for now.
+     *
+     * @return the ticket number, or null if the prompt gave up
+     */
+    private Integer promptForTicket() {
+        for (int tries = 0; tries < MAX_TRIES; tries++) {
+            Integer ticket = parseWholeNumber(customerView.promptTicket());
+            if (ticket != null) {
+                return ticket;
+            }
+            customerView.showError(NOT_A_NUMBER);
+        }
+        customerView.showError(TOO_MANY_TRIES);
+        return null;
     }
 
 

@@ -9,7 +9,7 @@ import student.TestCase;
  * the console replaced by a buffer the tests can read.
  *
  * @author Syed Rishad
- * @version 2026.11.12
+ * @version 2026.11.18
  */
 public class OrderUpControllerTest extends TestCase {
 
@@ -299,6 +299,204 @@ public class OrderUpControllerTest extends TestCase {
 
 
     // ----------------------------------------------------------
+    // handleSubmitOrder: rush orders
+    // ----------------------------------------------------------
+
+    /**
+     * A rush order shows its ticket and the rush note, and goes ahead of
+     * the regular orders already waiting.
+     */
+    public void testSubmitRushOrder() {
+        int first = placeOrder();
+        int second = placeOrder();
+        int rush = placeRushOrder();
+        cashierSays.showOrderPlaced(rush);
+        assertTrue(shown(said()));
+        assertEquals(1, timesShown(OrderUpController.RUSH_NOTE));
+        assertEquals(3, model.waitingCount());
+        assertEquals(rush, model.peekNext().getTicketNumber());
+        assertTrue(model.peekNext().isRush());
+        assertEquals(2, model.getStatus(first).getPosition());
+        assertEquals(3, model.getStatus(second).getPosition());
+    }
+
+
+    /**
+     * A submit with rush set to false is a regular order with no rush
+     * note.
+     */
+    public void testSubmitNotRush() {
+        int first = placeOrder();
+        controller.handleAddItem(1, 1);
+        controller.handleSubmitOrder(false);
+        assertEquals(0, timesShown(OrderUpController.RUSH_NOTE));
+        assertEquals(2, model.waitingCount());
+        assertEquals(first, model.peekNext().getTicketNumber());
+        assertFalse(model.peekNext().isRush());
+    }
+
+
+    /**
+     * Submitting an empty rush order is an error and no order is created.
+     */
+    public void testSubmitEmptyRushOrder() {
+        controller.handleSubmitOrder(true);
+        assertEquals(1, timesShown(error(OrderUpController.EMPTY_ORDER)));
+        assertEquals(0, timesShown(OrderUpController.RUSH_NOTE));
+        assertEquals(0, model.waitingCount());
+    }
+
+
+    // ----------------------------------------------------------
+    // handleCancelOrder
+    // ----------------------------------------------------------
+
+    /**
+     * Cancelling a waiting order confirms it and takes it out of the line.
+     */
+    public void testCancelOrder() {
+        int first = placeOrder();
+        int second = placeOrder();
+        controller.handleCancelOrder(first);
+        assertEquals(1, timesShown(OrderUpController.ORDER_CANCELLED
+            + first));
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(first)
+            .getStatus());
+        assertEquals(1, model.waitingCount());
+        assertEquals(second, model.peekNext().getTicketNumber());
+    }
+
+
+    /**
+     * Cancelling a ticket that was never issued is an error and changes
+     * nothing.
+     */
+    public void testCancelUnknownTicket() {
+        int ticket = placeOrder();
+        controller.handleCancelOrder(ticket + 1000);
+        controller.handleCancelOrder(-3);
+        assertEquals(2, timesShown(error(OrderUpController.NO_SUCH_ORDER)));
+        assertEquals(0, timesShown(OrderUpController.ORDER_CANCELLED));
+        assertEquals(1, model.waitingCount());
+        assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
+    }
+
+
+    /**
+     * An order that is already ready can't be cancelled.
+     */
+    public void testCancelReadyOrder() {
+        int ticket = placeOrder();
+        controller.handleCompleteNext();
+        controller.handleCancelOrder(ticket);
+        assertEquals(1, timesShown(error(OrderUpController.NOT_WAITING)));
+        assertEquals(0, timesShown(OrderUpController.ORDER_CANCELLED));
+        assertEquals(OrderStatus.READY, model.getStatus(ticket).getStatus());
+    }
+
+
+    /**
+     * An order can only be cancelled once.
+     */
+    public void testCancelTwice() {
+        int ticket = placeOrder();
+        controller.handleCancelOrder(ticket);
+        controller.handleCancelOrder(ticket);
+        assertEquals(1, timesShown(OrderUpController.ORDER_CANCELLED
+            + ticket));
+        assertEquals(1, timesShown(error(OrderUpController.NOT_WAITING)));
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(ticket)
+            .getStatus());
+    }
+
+
+    /**
+     * The cook is never shown a cancelled order.
+     */
+    public void testCancelledOrderIsSkipped() {
+        int first = placeOrder();
+        int second = placeOrder();
+        controller.handleCancelOrder(first);
+        controller.handleCompleteNext();
+        assertEquals(OrderStatus.READY, model.getStatus(second).getStatus());
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(first)
+            .getStatus());
+        kitchenSays.showEmptyLine();
+        assertEquals(1, timesShown(said()));
+    }
+
+
+    // ----------------------------------------------------------
+    // handleRemakeOrder
+    // ----------------------------------------------------------
+
+    /**
+     * Remaking a finished order puts it back at the front of the line and
+     * shows the cook the line.
+     */
+    public void testRemakeOrder() {
+        int first = placeOrder();
+        int second = placeOrder();
+        Order remade = model.peekNext();
+        controller.handleCompleteNext();
+        controller.handleRemakeOrder(first);
+        assertEquals(OrderStatus.WAITING, model.getStatus(first).getStatus());
+        assertEquals(1, model.getStatus(first).getPosition());
+        assertEquals(2, model.getStatus(second).getPosition());
+        kitchenSays.showNextOrder(remade);
+        assertTrue(shown(said()));
+        kitchenSays.showWaitingCount(2);
+        assertTrue(shown(said()));
+    }
+
+
+    /**
+     * Remaking a ticket that was never issued is an error and changes
+     * nothing.
+     */
+    public void testRemakeUnknownTicket() {
+        int ticket = placeOrder();
+        controller.handleCompleteNext();
+        controller.handleRemakeOrder(ticket + 1000);
+        assertEquals(1, timesShown(error(OrderUpController.NO_SUCH_ORDER)));
+        assertEquals(0, model.waitingCount());
+        assertEquals(OrderStatus.READY, model.getStatus(ticket).getStatus());
+    }
+
+
+    /**
+     * An order that is still waiting or was cancelled can't be remade.
+     */
+    public void testRemakeNotReady() {
+        int waiting = placeOrder();
+        int cancelled = placeOrder();
+        controller.handleCancelOrder(cancelled);
+        controller.handleRemakeOrder(waiting);
+        controller.handleRemakeOrder(cancelled);
+        assertEquals(2, timesShown(error(OrderUpController.NOT_READY)));
+        assertEquals(1, model.waitingCount());
+        assertEquals(1, model.getStatus(waiting).getPosition());
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(cancelled)
+            .getStatus());
+    }
+
+
+    /**
+     * A rush order waits behind a remake but ahead of the regular orders.
+     */
+    public void testRushWaitsBehindRemake() {
+        int remade = placeOrder();
+        int regular = placeOrder();
+        controller.handleCompleteNext();
+        controller.handleRemakeOrder(remade);
+        int rush = placeRushOrder();
+        assertEquals(1, model.getStatus(remade).getPosition());
+        assertEquals(2, model.getStatus(rush).getPosition());
+        assertEquals(3, model.getStatus(regular).getPosition());
+    }
+
+
+    // ----------------------------------------------------------
     // handleStatusLookup
     // ----------------------------------------------------------
 
@@ -352,9 +550,11 @@ public class OrderUpControllerTest extends TestCase {
      * Choosing quit ends the loop.
      */
     public void testRunQuit() {
-        connect("7\n");
+        connect("0\n1\n");
         controller.run();
         assertEquals(1, timesShown(OrderUpController.GOODBYE));
+        cashierSays.showNewOrderStarted();
+        assertFalse(shown(said()));
     }
 
 
@@ -385,7 +585,7 @@ public class OrderUpControllerTest extends TestCase {
      * comes back.
      */
     public void testRunBadOption() {
-        connect("9\nabc\n\n7\n");
+        connect("10\nabc\n\n0\n");
         controller.run();
         assertEquals(3, timesShown(OrderUpController.BAD_OPTION));
         assertEquals(1, timesShown(OrderUpController.GOODBYE));
@@ -396,7 +596,7 @@ public class OrderUpControllerTest extends TestCase {
      * Spaces around a main menu choice are ignored.
      */
     public void testRunTrimsChoice() {
-        connect("  3  \n 7 \n");
+        connect("  3  \n 0 \n");
         controller.run();
         assertEquals(0, timesShown(OrderUpController.BAD_OPTION));
         assertEquals(1, timesShown(error(OrderUpController.EMPTY_ORDER)));
@@ -410,7 +610,7 @@ public class OrderUpControllerTest extends TestCase {
     public void testRunSurvivesFailure() {
         screen = new ByteArrayOutputStream();
         PrintStream printer = new PrintStream(screen);
-        Scanner in = new Scanner("5\n3\n7\n");
+        Scanner in = new Scanner("5\n3\n0\n");
         KitchenView broken = new KitchenView(printer) {
             @Override
             public void showEmptyLine() {
@@ -435,7 +635,7 @@ public class OrderUpControllerTest extends TestCase {
      * A cashier can start an order, add an item, and submit it.
      */
     public void testRunPlaceOrder() {
-        connect("1\n2\n1\n2\n3\n7\n");
+        connect("1\n2\n1\n2\n3\n0\n");
         controller.run();
         cashierSays.showNewOrderStarted();
         assertTrue(shown(said()));
@@ -454,7 +654,7 @@ public class OrderUpControllerTest extends TestCase {
      * again.
      */
     public void testRunRepromptsItemNumber() {
-        connect("2\nabc\n\n1\n2\n3\n7\n");
+        connect("2\nabc\n\n1\n2\n3\n0\n");
         controller.run();
         assertEquals(2, timesShown(error(OrderUpController.NOT_A_NUMBER)));
         cashierSays.showItemAdded(model.getMenu().get(0), 2);
@@ -468,7 +668,7 @@ public class OrderUpControllerTest extends TestCase {
      * again.
      */
     public void testRunRepromptsMissingItem() {
-        connect("2\n0\n1\n1\n3\n7\n");
+        connect("2\n0\n1\n1\n3\n0\n");
         controller.run();
         assertEquals(1, timesShown(error(OrderUpController.NO_SUCH_ITEM)));
         assertEquals(1, model.waitingCount());
@@ -480,7 +680,7 @@ public class OrderUpControllerTest extends TestCase {
      * asked for again.
      */
     public void testRunRepromptsQuantity() {
-        connect("2\n1\ntwo\n0\n5\n3\n7\n");
+        connect("2\n1\ntwo\n0\n5\n3\n0\n");
         controller.run();
         assertEquals(1, timesShown(error(OrderUpController.NOT_A_NUMBER)));
         assertEquals(1, timesShown(error(OrderUpController.BAD_QUANTITY)));
@@ -495,7 +695,7 @@ public class OrderUpControllerTest extends TestCase {
      * menu with nothing added.
      */
     public void testRunItemNumberGivesUp() {
-        connect("2\nx\ny\nz\n3\n7\n");
+        connect("2\nx\ny\nz\n3\n0\n");
         controller.run();
         assertEquals(OrderUpController.MAX_TRIES, timesShown(error(
             OrderUpController.NOT_A_NUMBER)));
@@ -510,7 +710,7 @@ public class OrderUpControllerTest extends TestCase {
      * with nothing added.
      */
     public void testRunQuantityGivesUp() {
-        connect("2\n1\nx\n0\n100\n3\n7\n");
+        connect("2\n1\nx\n0\n100\n3\n0\n");
         controller.run();
         assertEquals(1, timesShown(error(OrderUpController.NOT_A_NUMBER)));
         assertEquals(2, timesShown(error(OrderUpController.BAD_QUANTITY)));
@@ -542,7 +742,7 @@ public class OrderUpControllerTest extends TestCase {
     public void testRunKitchen() {
         int ticket = placeOrder();
         Order front = model.peekNext();
-        connect("4\n5\n5\n7\n");
+        connect("4\n5\n5\n0\n");
         controller.run();
         kitchenSays.showNextOrder(front);
         assertTrue(shown(said()));
@@ -560,7 +760,7 @@ public class OrderUpControllerTest extends TestCase {
      */
     public void testRunStatusLookup() {
         int ticket = placeOrder();
-        connect("6\nabc\n\n " + ticket + " \n7\n");
+        connect("6\nabc\n\n " + ticket + " \n0\n");
         controller.run();
         assertEquals(2, timesShown(error(OrderUpController.NOT_A_NUMBER)));
         customerSays.showStatus(ticket, OrderStatus.WAITING, 1);
@@ -573,7 +773,7 @@ public class OrderUpControllerTest extends TestCase {
      * asked for again.
      */
     public void testRunStatusNotFound() {
-        connect("6\n999\n7\n");
+        connect("6\n999\n0\n");
         controller.run();
         customerSays.showNotFound(999);
         assertEquals(1, timesShown(said()));
@@ -587,11 +787,137 @@ public class OrderUpControllerTest extends TestCase {
      * menu.
      */
     public void testRunStatusGivesUp() {
-        connect("6\na\nb\nc\n7\n");
+        connect("6\na\nb\nc\n0\n");
         controller.run();
         assertEquals(OrderUpController.MAX_TRIES, timesShown(error(
             OrderUpController.NOT_A_NUMBER)));
         assertEquals(1, timesShown(error(OrderUpController.TOO_MANY_TRIES)));
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    // ----------------------------------------------------------
+    // run: rush, cancel, and remake
+    // ----------------------------------------------------------
+
+    /**
+     * A cashier can submit a rush order from the main menu.
+     */
+    public void testRunRushOrder() {
+        int regular = placeOrder();
+        connect("2\n1\n1\n7\n0\n");
+        controller.run();
+        assertEquals(1, timesShown(OrderUpController.RUSH_NOTE));
+        assertEquals(2, model.waitingCount());
+        assertTrue(model.peekNext().isRush());
+        assertEquals(2, model.getStatus(regular).getPosition());
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * A rush submit with nothing in the order is an error and the menu
+     * comes back.
+     */
+    public void testRunEmptyRushOrder() {
+        connect("7\n0\n");
+        controller.run();
+        assertEquals(1, timesShown(error(OrderUpController.EMPTY_ORDER)));
+        assertEquals(0, timesShown(OrderUpController.RUSH_NOTE));
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * A cashier can cancel an order from the main menu. A blank or
+     * non-numeric ticket number is an error and is asked for again.
+     */
+    public void testRunCancel() {
+        int ticket = placeOrder();
+        connect("8\nabc\n\n " + ticket + " \n0\n");
+        controller.run();
+        assertEquals(2, timesShown(error(OrderUpController.NOT_A_NUMBER)));
+        assertEquals(1, timesShown(OrderUpController.ORDER_CANCELLED
+            + ticket));
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(ticket)
+            .getStatus());
+        assertEquals(0, model.waitingCount());
+    }
+
+
+    /**
+     * A numeric ticket that doesn't exist is an error and is not asked for
+     * again.
+     */
+    public void testRunCancelUnknownTicket() {
+        int ticket = placeOrder();
+        connect("8\n999\n0\n");
+        controller.run();
+        assertEquals(1, timesShown(error(OrderUpController.NO_SUCH_ORDER)));
+        assertEquals(0, timesShown(error(OrderUpController.NOT_A_NUMBER)));
+        assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * After too many bad ticket numbers the cashier goes back to the main
+     * menu and nothing is cancelled.
+     */
+    public void testRunCancelGivesUp() {
+        int ticket = placeOrder();
+        connect("8\na\nb\nc\n0\n");
+        controller.run();
+        assertEquals(OrderUpController.MAX_TRIES, timesShown(error(
+            OrderUpController.NOT_A_NUMBER)));
+        assertEquals(1, timesShown(error(OrderUpController.TOO_MANY_TRIES)));
+        assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * A cook can complete an order and then send it back to be remade from
+     * the main menu.
+     */
+    public void testRunRemake() {
+        int first = placeOrder();
+        int second = placeOrder();
+        connect("5\n9\n" + first + "\n0\n");
+        controller.run();
+        assertEquals(OrderStatus.WAITING, model.getStatus(first).getStatus());
+        assertEquals(1, model.getStatus(first).getPosition());
+        assertEquals(2, model.getStatus(second).getPosition());
+        kitchenSays.showWaitingCount(2);
+        assertTrue(shown(said()));
+    }
+
+
+    /**
+     * Remaking an order that is still waiting is an error from the main
+     * menu too, and the loop keeps going.
+     */
+    public void testRunRemakeNotReady() {
+        int ticket = placeOrder();
+        connect("9\n" + ticket + "\n9\n999\n0\n");
+        controller.run();
+        assertEquals(1, timesShown(error(OrderUpController.NOT_READY)));
+        assertEquals(1, timesShown(error(OrderUpController.NO_SUCH_ORDER)));
+        assertEquals(1, model.getStatus(ticket).getPosition());
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * The input can run out in the middle of the cancel prompt without
+     * hanging or crashing.
+     */
+    public void testRunInputEndsDuringCancel() {
+        int ticket = placeOrder();
+        connect("8\n");
+        controller.run();
+        assertEquals(1, timesShown(error(OrderUpController.TOO_MANY_TRIES)));
+        assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
         assertEquals(1, timesShown(OrderUpController.GOODBYE));
     }
 
@@ -630,6 +956,25 @@ public class OrderUpControllerTest extends TestCase {
         // A new order is last in line, so find the ticket at that place.
         int ticket = model.peekNext().getTicketNumber();
         while (model.getStatus(ticket).getPosition() != before + 1) {
+            ticket++;
+        }
+        return ticket;
+    }
+
+
+    /**
+     * Adds one item and submits the order as a rush order through the
+     * controller.
+     *
+     * @return the new order's ticket number
+     */
+    private int placeRushOrder() {
+        controller.handleAddItem(1, 1);
+        controller.handleSubmitOrder(true);
+        // Tickets go up by one, so the newest order has the highest one.
+        int ticket = OrderBook.FIRST_TICKET;
+        while (model.getStatus(ticket + 1)
+            .getStatus() != OrderStatus.NOT_FOUND) {
             ticket++;
         }
         return ticket;

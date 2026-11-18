@@ -11,7 +11,7 @@ import java.util.List;
  * throwing, and the controller decides what to show.
  *
  * @author Syed Rishad
- * @version 2026.11.12
+ * @version 2026.11.18
  */
 public class OrderUpModel {
 
@@ -101,27 +101,49 @@ public class OrderUpModel {
 
 
     /**
-     * Turns the order being built into a real order: gives it a ticket,
-     * records it in the order book, and puts it at the back of the kitchen
-     * line. The next order then starts empty.
+     * Submits the order being built as a regular order, which waits at the
+     * back of the kitchen line.
      *
      * @return the new order's ticket number
      * @throws IllegalStateException
      *             if the order being built has no items
      */
     public int submitOrder() {
+        return submitOrder(false);
+    }
+
+
+    /**
+     * Turns the order being built into a real order: gives it a ticket,
+     * records it in the order book, and puts it in the kitchen line. A
+     * regular order goes to the back. A rush order goes ahead of every
+     * regular order, but behind any remakes and earlier rush orders. The
+     * next order then starts empty.
+     *
+     * @param rush
+     *            true to submit the order as a rush order
+     * @return the new order's ticket number
+     * @throws IllegalStateException
+     *             if the order being built has no items
+     */
+    public int submitOrder(boolean rush) {
         if (draft.isEmpty()) {
             throw new IllegalStateException(
                 "An order needs at least one item.");
         }
         // The ticket is only taken here, so an order that is started and
         // then abandoned never uses one up.
-        Order order = new Order(orderBook.nextTicket());
+        Order order = new Order(orderBook.nextTicket(), rush);
         for (OrderItem line : draft) {
             order.addItem(line.getMenuItem(), line.getQuantity());
         }
         orderBook.register(order);
-        kitchenQueue.enqueue(order);
+        if (rush) {
+            kitchenQueue.enqueueRush(order);
+        }
+        else {
+            kitchenQueue.enqueue(order);
+        }
         draft.clear();
         return order.getTicketNumber();
     }

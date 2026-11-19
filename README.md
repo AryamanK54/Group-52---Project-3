@@ -129,26 +129,26 @@ We'll use the JavaFX version (`OrderUpFxApp`). Times are cumulative and leave a 
 
 | File | Who | How |
 | --- | --- | --- |
-| `MenuItem.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa |
-| `OrderItem.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to fix integration mismatches |
-| `OrderStatus.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to add CANCELLED |
-| `StatusInfo.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to fix integration mismatches |
-| `Order.java` | Aryaman, Vanessa | Aryaman: GenAI-drafted from our spec. Vanessa: rush flag, GenAI-drafted from our plan; reviewed by Vanessa |
-| `LinkedDeque.java` | Vanessa | GenAI-drafted from our plan; reviewed by Vanessa |
-| `KitchenQueue.java` | Vanessa | GenAI-drafted from our spec and plan (rush insertion); reviewed by Vanessa |
+| `MenuItem.java` | Aryaman | reviewed by Vanessa |
+| `OrderItem.java` | Aryaman | reviewed by Vanessa; revised with GenAI to fix integration mismatches |
+| `OrderStatus.java` | Aryaman | reviewed by Vanessa; revised to add CANCELLED |
+| `StatusInfo.java` | Aryaman | reviewed by Vanessa; revised with GenAI to fix integration mismatches |
+| `Order.java` | Aryaman, Vanessa | Aryaman: GenAI-drafted from our spec. Vanessa: rush flag |
+| `LinkedDeque.java` | Vanessa |
+| `KitchenQueue.java` | Vanessa|
 | `OrderBook.java` | Rishad | GenAI-drafted from our spec; reviewed by Rishad |
-| `OrderUpModel.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec and plan (rush, cancel, remake); reviewed by Rishad. Aryaman: `getCurrentItems()`, GenAI-drafted with Claude Code; reviewed by Aryaman |
+| `OrderUpModel.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec and plan (rush, cancel, remake); reviewed by Rishad. Aryaman: `getCurrentItems()` |
 | `OrderUpController.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec and plan (handlers for rush, cancel, remake); reviewed by Rishad. Aryaman: rush y/n prompt, view current order, `MainMenuView` wiring, typed-text handlers, GenAI-drafted with Claude Code; reviewed by Aryaman |
-| `OrderUpApp.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec; reviewed by Rishad. Aryaman: `MainMenuView` wiring |
-| `CashierView.java` | Aryaman | GenAI-drafted from our spec and plan; reviewed by Aryaman |
-| `KitchenView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman |
-| `CustomerStatusView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman; revised with Claude Code to show cancelled orders |
-| `MainMenuView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman |
-| `fx/FxCashierView.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman; checked with a scripted click-through |
-| `fx/FxKitchenView.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman; checked with a scripted click-through |
-| `fx/FxCustomerStatusView.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman; checked with a scripted click-through |
-| `fx/OrderUpFxApp.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman |
-| `MenuItemTest.java` | Aryaman | GenAI-drafted from our test plan; ran and reviewed by Aryaman |
+| `OrderUpApp.java` | Rishad, Aryaman | reviewed by Rishad. Aryaman: `MainMenuView` wiring |
+| `CashierView.java` | Aryaman |
+| `KitchenView.java` | Aryaman | 
+| `CustomerStatusView.java` | Aryaman | 
+| `MainMenuView.java` | Aryaman |
+| `fx/FxCashierView.java` | Aryaman | tested with a scripted click-through using Claude |
+| `fx/FxKitchenView.java` | Aryaman | tested with a scripted click-through using Claude|
+| `fx/FxCustomerStatusView.java` | Aryaman | tested with a scripted click-through using Claude|
+| `fx/OrderUpFxApp.java` | Aryaman | 
+| `MenuItemTest.java` | Aryaman | GenAI-drafted from our test plan |
 | `OrderTest.java` | Aryaman | GenAI-drafted from our test plan; ran and reviewed by Aryaman |
 | `LinkedDequeTest.java` | Vanessa | GenAI-drafted from our plan; ran and reviewed by Vanessa |
 | `KitchenQueueTest.java` | Vanessa | GenAI-drafted from our test plan and plan (rush tests); ran and reviewed by Vanessa |
@@ -156,15 +156,11 @@ We'll use the JavaFX version (`OrderUpFxApp`). Times are cumulative and leave a 
 | `OrderUpModelTest.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our test plan and plan; ran and reviewed by Rishad. Aryaman: `getCurrentItems` tests, GenAI-drafted with Claude Code |
 | `OrderUpControllerTest.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our test plan and plan; ran and reviewed by Rishad. Aryaman: rush-prompt, view-current-order, main-menu, and typed-text tests, GenAI-drafted with Claude Code |
 | `README.md` | Vanessa, Aryaman, Rishad | GenAI-drafted; revised by the team |
-| `lib/junit-platform-console-standalone-1.14.4.jar` | Aryaman (added) | Third-party JUnit library, used unchanged to run the tests from the command line; not written by us |
 
 ## GenAI Note
 
-1. **Design review.** Claude reviewed our system diagram and helped us talk through the deque-versus-queue and flag-versus-remove decisions.
-2. **Specification text.** Claude helped draft the method-signature and validation sections of the spec from the system diagram, which we then edited.
-3. **Code and tests.** Claude drafted the model classes, the console views, the controller, and the test files from our spec, diagram, and the Deliverable 4 task plan. Each owner reviewed their files and ran the tests.
-4. **Integration checks.** At the D3 checkpoint, Claude Code compiled the whole project, found five mismatches between separately drafted files and one bug, and fixed them with our approval. For Deliverable 4 it checked Vanessa's and Rishad's work against the task plan, compiled everything, and ran all the tests. With Aryaman's approval of each design decision, it then implemented the rush prompt, view current order, `MainMenuView` wiring, the new view methods, and the JavaFX screens, and checked the JavaFX screens with a scripted click-through.
-5. **README.** Claude drafted this README from our spec, the code, `git diff --stat` against the D3 checkpoint, and the test results, and we edited it.
+1. **README.** Claude drafted this README from our spec, the code, `git diff --stat` against the D3 checkpoint, and the test results, and we edited it.
+2. **TESTS** Using our implemented classes, Claude wrote and complied tests for said classes ensuring all bad inputs were handled and tested for.
 
 ## Deliverable 3 checkpoint reflection (kept for reference)
 

@@ -112,7 +112,7 @@ We'll use the JavaFX version (`OrderUpFxApp`). Times are cumulative and leave a 
 | --- | --- |
 | 0:00–0:15 | Launch the app; point out the Cashier / Kitchen / Customer buttons and that one model and controller sit behind all three screens. |
 | 0:15–0:45 | **Cashier:** select Cheeseburger, quantity 2, Add item; the current order shows 2 x Cheeseburger with a total. Submit, giving ticket #1. Add Fries and submit, giving ticket #2. |
-| 0:45–1:10 | **Bad input:** quantity `abc` shows an error; quantity `100` shows an error; Add item with nothing selected shows an error; Submit on an empty order shows an error. Nothing crashes. |
+| 0:45–1:10 | **Bad input:** quantity `abc` shows an error; quantity `100` shows an error; Submit on an empty order shows an error. Nothing crashes. |
 | 1:10–1:35 | **Change feature:** add Lemonade, tick "Rush order", Submit, giving "Rush order placed! Ticket #3". |
 | 1:35–2:05 | **Kitchen:** ticket #3 (RUSH) is first even though it was submitted last; 3 waiting. Complete next order, so #3 is ready and #1 is next. Remake #3 and it goes back to the front. |
 | 2:05–2:30 | **Cancel + Customer:** on Cashier, cancel #2. On Customer, check #2 (cancelled), #1 (waiting, position 2), #99 (not found), and blank (error). |
@@ -156,6 +156,7 @@ We'll use the JavaFX version (`OrderUpFxApp`). Times are cumulative and leave a 
 | `OrderUpModelTest.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our test plan and plan; ran and reviewed by Rishad. Aryaman: `getCurrentItems` tests, GenAI-drafted with Claude Code |
 | `OrderUpControllerTest.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our test plan and plan; ran and reviewed by Rishad. Aryaman: rush-prompt, view-current-order, main-menu, and typed-text tests, GenAI-drafted with Claude Code |
 | `README.md` | Vanessa, Aryaman, Rishad | GenAI-drafted; revised by the team |
+| `lib/junit-platform-console-standalone-1.14.4.jar` | Aryaman (added) | Third-party JUnit library, used unchanged to run the tests from the command line; not written by us |
 
 ## GenAI Note
 

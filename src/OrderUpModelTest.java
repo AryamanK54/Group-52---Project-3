@@ -183,6 +183,77 @@ public class OrderUpModelTest extends TestCase {
 
 
     // ----------------------------------------------------------
+    // getCurrentItems
+    // ----------------------------------------------------------
+
+    /**
+     * A new model has nothing on the order being built.
+     */
+    public void testCurrentItemsStartEmpty() {
+        assertTrue(model.getCurrentItems().isEmpty());
+    }
+
+
+    /**
+     * The order being built lists the items added, in the order added.
+     */
+    public void testCurrentItemsAfterAdding() {
+        model.addToOrder(burger, 2);
+        model.addToOrder(fries, 1);
+        List<OrderItem> items = model.getCurrentItems();
+        assertEquals(2, items.size());
+        assertSame(burger, items.get(0).getMenuItem());
+        assertEquals(2, items.get(0).getQuantity());
+        assertSame(fries, items.get(1).getMenuItem());
+    }
+
+
+    /**
+     * A rejected item is not added to the order being built.
+     */
+    public void testCurrentItemsIgnoresRejectedItem() {
+        model.addToOrder(burger, 1);
+        assertFalse(canAdd(burger, 100));
+        assertFalse(canAdd(null, 1));
+        assertEquals(1, model.getCurrentItems().size());
+    }
+
+
+    /**
+     * The order being built is empty again after a submit, a rush submit,
+     * or starting a new order.
+     */
+    public void testCurrentItemsClearedBySubmitAndNewOrder() {
+        model.addToOrder(burger, 1);
+        model.submitOrder();
+        assertTrue(model.getCurrentItems().isEmpty());
+        model.addToOrder(fries, 1);
+        model.submitOrder(true);
+        assertTrue(model.getCurrentItems().isEmpty());
+        model.addToOrder(soda, 1);
+        model.startNewOrder();
+        assertTrue(model.getCurrentItems().isEmpty());
+    }
+
+
+    /**
+     * The order being built can't be changed through getCurrentItems.
+     */
+    public void testCurrentItemsIsReadOnly() {
+        model.addToOrder(burger, 1);
+        Exception thrown = null;
+        try {
+            model.getCurrentItems().clear();
+        }
+        catch (UnsupportedOperationException e) {
+            thrown = e;
+        }
+        assertNotNull(thrown);
+        assertEquals(1, model.getCurrentItems().size());
+    }
+
+
+    // ----------------------------------------------------------
     // submitOrder
     // ----------------------------------------------------------
 

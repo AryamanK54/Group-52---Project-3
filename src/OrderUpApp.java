@@ -24,8 +24,9 @@ public class OrderUpApp {
         KitchenView kitchenView = new KitchenView(System.out);
         CustomerStatusView customerView =
             new CustomerStatusView(in, System.out);
+        MainMenuView mainMenuView = new MainMenuView(in, System.out);
         OrderUpController controller = new OrderUpController(model,
-            cashierView, kitchenView, customerView, in, System.out);
+            cashierView, kitchenView, customerView, mainMenuView);
         controller.run();
     }
 }

@@ -29,7 +29,8 @@ public class CustomerStatusView {
 
     /**
      * Shows an order's status. A NOT_FOUND status is shown the same way as
-     * showNotFound. The position is only shown for WAITING orders.
+     * showNotFound, and a CANCELLED order says it was cancelled. The position
+     * is only shown for WAITING orders.
      *
      * @param ticket   the ticket number asked about
      * @param status   the order's status
@@ -42,6 +43,9 @@ public class CustomerStatusView {
                 break;
             case READY:
                 out.println("Order #" + ticket + " is READY for pickup!");
+                break;
+            case CANCELLED:
+                out.println("Order #" + ticket + " was cancelled.");
                 break;
             default:
                 showNotFound(ticket);

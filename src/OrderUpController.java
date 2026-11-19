@@ -1,7 +1,10 @@
-import java.io.PrintStream;
-import java.util.Scanner;
-
 /**
+ * The only controller in Order Up!. It takes what the user typed or clicked,
+ * checks that it is well formed, calls the model, and tells the right view
+ * what to show. It never prints or reads anything itself: the console main
+ * menu goes through MainMenuView, and every other message goes through the
+ * cashier, kitchen, or customer view. The JavaFX screens call the same
+ * handle... methods as the console menu.
  *
  * @author Syed Rishad
  * @version 2026.11.18
@@ -34,11 +37,14 @@ public class OrderUpController {
 
     /** Shown when the main menu choice is not one of the options. */
     static final String BAD_OPTION =
-        "Error: Please choose one of the numbered options.";
+        "Please choose one of the numbered options.";
 
     /** Shown if something fails that the handlers did not expect. */
     static final String UNEXPECTED =
-        "Error: Something went wrong. Please try again.";
+        "Something went wrong. Please try again.";
+
+    /** Shown when the answer to the rush question is not yes or no. */
+    static final String NOT_YES_NO = "Please answer y or n.";
 
     /** Shown when a ticket number to cancel or remake was never issued. */
     static final String NO_SUCH_ORDER =
@@ -52,20 +58,6 @@ public class OrderUpController {
     static final String NOT_READY =
         "Only an order that is ready can be sent back to be remade.";
 
-    /**
-     * Shown after a rush order is placed. The controller prints this itself
-     * for now, because CashierView has no method for it yet.
-     */
-    static final String RUSH_NOTE =
-        "Rush order: it goes ahead of the regular orders.";
-
-    /**
-     * Shown, followed by the ticket number, after an order is cancelled. The
-     * controller prints this itself for now, because CashierView has no
-     * method for it yet.
-     */
-    static final String ORDER_CANCELLED = "Order cancelled. Ticket #";
-
     /** Shown when the program ends. */
     static final String GOODBYE = "Goodbye!";
 
@@ -73,11 +65,10 @@ public class OrderUpController {
     private final CashierView cashierView;
     private final KitchenView kitchenView;
     private final CustomerStatusView customerView;
-    private final Scanner in;
-    private final PrintStream out;
+    private final MainMenuView mainMenuView;
 
     /**
-     * Creates a controller for one model and the three views.
+     * Creates a controller for one model and the four views.
      *
      * @param model
      *            the model every handler reads and changes
@@ -87,11 +78,8 @@ public class OrderUpController {
      *            the cook's view
      * @param customerView
      *            the customer status view
-     * @param in
-     *            the one input source the whole program shares, used here
-     *            for the main menu choice
-     * @param out
-     *            where the main menu is printed
+     * @param mainMenuView
+     *            the console main menu, used only by run()
      * @throws IllegalArgumentException
      *             if any argument is null
      */
@@ -100,20 +88,17 @@ public class OrderUpController {
         CashierView cashierView,
         KitchenView kitchenView,
         CustomerStatusView customerView,
-        Scanner in,
-        PrintStream out) {
+        MainMenuView mainMenuView) {
         if (model == null || cashierView == null || kitchenView == null
-            || customerView == null || in == null || out == null) {
+            || customerView == null || mainMenuView == null) {
             throw new IllegalArgumentException(
-                "The model, the three views, the input, and the output "
-                    + "are all required.");
+                "The model and all four views are required.");
         }
         this.model = model;
         this.cashierView = cashierView;
         this.kitchenView = kitchenView;
         this.customerView = customerView;
-        this.in = in;
-        this.out = out;
+        this.mainMenuView = mainMenuView;
     }
 
 
@@ -125,21 +110,17 @@ public class OrderUpController {
     public void run() {
         boolean running = true;
         while (running) {
-            showMainMenu();
-            if (in.hasNextLine()) {
-                String choice = in.nextLine().trim();
-                try {
-                    running = dispatch(choice);
-                }
-                catch (RuntimeException e) {
-                    out.println(UNEXPECTED);
-                }
+            mainMenuView.showMainMenu();
+            // promptChoice returns "0" (quit) once the input runs out.
+            String choice = mainMenuView.promptChoice();
+            try {
+                running = dispatch(choice);
             }
-            else {
-                running = false;
+            catch (RuntimeException e) {
+                mainMenuView.showError(UNEXPECTED);
             }
         }
-        out.println(GOODBYE);
+        mainMenuView.showGoodbye();
     }
 
 
@@ -153,6 +134,22 @@ public class OrderUpController {
     public void handleNewOrder() {
         model.startNewOrder();
         cashierView.showNewOrderStarted();
+    }
+
+
+    /**
+     * Shows the cashier the menu.
+     */
+    public void handleShowMenu() {
+        cashierView.showMenu(model.getMenu());
+    }
+
+
+    /**
+     * Shows the cashier the items on the order being built so far.
+     */
+    public void handleViewCurrentOrder() {
+        cashierView.showCurrentOrder(model.getCurrentItems());
     }
 
 
@@ -188,6 +185,28 @@ public class OrderUpController {
 
 
     /**
+     * Adds an item to the order being built from typed text, as the JavaFX
+     * cashier screen sends it. Text that is blank or not a whole number is
+     * reported to the cashier and nothing is added; otherwise this works like
+     * handleAddItem(int, int).
+     *
+     * @param choiceText
+     *            the item number as typed, where the first item is 1
+     * @param qtyText
+     *            the quantity as typed
+     */
+    public void handleAddItem(String choiceText, String qtyText) {
+        Integer choice = parseWholeNumber(choiceText);
+        Integer qty = parseWholeNumber(qtyText);
+        if (choice == null || qty == null) {
+            cashierView.showError(NOT_A_NUMBER);
+            return;
+        }
+        handleAddItem(choice.intValue(), qty.intValue());
+    }
+
+
+    /**
      * Submits the order being built as a regular order and shows the
      * cashier the ticket number. An empty order is reported to the cashier
      * and nothing is submitted.
@@ -214,9 +233,11 @@ public class OrderUpController {
             cashierView.showError(EMPTY_ORDER);
             return;
         }
-        cashierView.showOrderPlaced(ticket);
         if (rush) {
-            out.println(RUSH_NOTE);
+            cashierView.showRushOrderPlaced(ticket);
+        }
+        else {
+            cashierView.showOrderPlaced(ticket);
         }
     }
 
@@ -241,7 +262,25 @@ public class OrderUpController {
             cashierView.showError(NOT_WAITING);
             return;
         }
-        out.println(ORDER_CANCELLED + ticket);
+        cashierView.showOrderCancelled(ticket);
+    }
+
+
+    /**
+     * Cancels an order from a typed ticket number, as the JavaFX cashier
+     * screen sends it. Text that is blank or not a whole number is reported
+     * to the cashier; otherwise this works like handleCancelOrder(int).
+     *
+     * @param ticketText
+     *            the ticket number as typed
+     */
+    public void handleCancelOrder(String ticketText) {
+        Integer ticket = parseWholeNumber(ticketText);
+        if (ticket == null) {
+            cashierView.showError(NOT_A_NUMBER);
+            return;
+        }
+        handleCancelOrder(ticket.intValue());
     }
 
 
@@ -299,6 +338,25 @@ public class OrderUpController {
     }
 
 
+    /**
+     * Sends a finished order back to be remade from a typed ticket number,
+     * as the JavaFX kitchen screen sends it. Text that is blank or not a
+     * whole number is reported to the cook; otherwise this works like
+     * handleRemakeOrder(int).
+     *
+     * @param ticketText
+     *            the ticket number as typed
+     */
+    public void handleRemakeOrder(String ticketText) {
+        Integer ticket = parseWholeNumber(ticketText);
+        if (ticket == null) {
+            kitchenView.showError(NOT_A_NUMBER);
+            return;
+        }
+        handleRemakeOrder(ticket.intValue());
+    }
+
+
     // ----------------------------------------------------------
     // Customer
     // ----------------------------------------------------------
@@ -320,6 +378,24 @@ public class OrderUpController {
             customerView.showStatus(ticket, info.getStatus(), info
                 .getPosition());
         }
+    }
+
+
+    /**
+     * Looks up an order from a typed ticket number, as the JavaFX customer
+     * screen sends it. Text that is blank or not a whole number is reported
+     * to the customer; otherwise this works like handleStatusLookup(int).
+     *
+     * @param ticketText
+     *            the ticket number as typed
+     */
+    public void handleStatusLookup(String ticketText) {
+        Integer ticket = parseWholeNumber(ticketText);
+        if (ticket == null) {
+            customerView.showError(NOT_A_NUMBER);
+            return;
+        }
+        handleStatusLookup(ticket.intValue());
     }
 
 
@@ -345,27 +421,6 @@ public class OrderUpController {
     // ----------------------------------------------------------
 
     /**
-     * Prints the main menu and the prompt for a choice.
-     */
-    private void showMainMenu() {
-        out.println();
-        out.println("=== Order Up! ===");
-        out.println("  1) Cashier: start a new order");
-        out.println("  2) Cashier: add an item");
-        out.println("  3) Cashier: submit the order");
-        out.println("  4) Kitchen: show the next order");
-        out.println("  5) Kitchen: complete the next order");
-        out.println("  6) Customer: check an order");
-        out.println("  7) Cashier: submit the order as a rush order");
-        out.println("  8) Cashier: cancel an order");
-        out.println("  9) Kitchen: remake a finished order");
-        out.println("  0) Quit");
-        out.print("Choose an option: ");
-        out.flush();
-    }
-
-
-    /**
      * Runs the handler for one main menu choice.
      *
      * @param choice
@@ -382,7 +437,7 @@ public class OrderUpController {
                 addItemFromPrompts();
                 break;
             case "3":
-                handleSubmitOrder();
+                submitFromPrompt();
                 break;
             case "4":
                 handleShowNext();
@@ -394,7 +449,7 @@ public class OrderUpController {
                 lookUpFromPrompt();
                 break;
             case "7":
-                handleSubmitOrder(true);
+                handleViewCurrentOrder();
                 break;
             case "8":
                 cancelFromPrompt();
@@ -407,7 +462,7 @@ public class OrderUpController {
                 keepGoing = false;
                 break;
             default:
-                out.println(BAD_OPTION);
+                mainMenuView.showError(BAD_OPTION);
                 break;
         }
         return keepGoing;
@@ -430,6 +485,23 @@ public class OrderUpController {
             return;
         }
         handleAddItem(choice.intValue(), qty.intValue());
+    }
+
+
+    /**
+     * Asks the cashier whether the order being built is a rush order, then
+     * submits it. An empty order is reported without asking. If the rush
+     * prompt gives up, nothing is submitted and the items stay on the order.
+     */
+    private void submitFromPrompt() {
+        if (model.getCurrentItems().isEmpty()) {
+            cashierView.showError(EMPTY_ORDER);
+            return;
+        }
+        Boolean rush = promptForRush();
+        if (rush != null) {
+            handleSubmitOrder(rush.booleanValue());
+        }
     }
 
 
@@ -483,6 +555,28 @@ public class OrderUpController {
             customerView.showError(NOT_A_NUMBER);
         }
         customerView.showError(TOO_MANY_TRIES);
+        return null;
+    }
+
+
+    /**
+     * Asks the cashier "rush order?" until y, yes, n, or no is entered, in
+     * any case and ignoring spaces around it.
+     *
+     * @return true for yes, false for no, or null if the prompt gave up
+     */
+    private Boolean promptForRush() {
+        for (int tries = 0; tries < MAX_TRIES; tries++) {
+            String answer = cashierView.promptRush().trim().toLowerCase();
+            if (answer.equals("y") || answer.equals("yes")) {
+                return Boolean.TRUE;
+            }
+            if (answer.equals("n") || answer.equals("no")) {
+                return Boolean.FALSE;
+            }
+            cashierView.showError(NOT_YES_NO);
+        }
+        cashierView.showError(TOO_MANY_TRIES);
         return null;
     }
 

@@ -9,6 +9,8 @@ import student.TestCase;
  * the console replaced by a buffer the tests can read.
  *
  * @author Syed Rishad
+ * @author Aryaman Kapoor (rush prompt, view current order, typed-text
+ *         handlers, MainMenuView wiring)
  * @version 2026.11.18
  */
 public class OrderUpControllerTest extends TestCase {
@@ -46,7 +48,7 @@ public class OrderUpControllerTest extends TestCase {
     // ----------------------------------------------------------
 
     /**
-     * The constructor rejects a missing model, view, input, or output.
+     * The constructor rejects a missing model or view.
      */
     public void testConstructorRejectsNull() {
         Scanner in = new Scanner("");
@@ -54,12 +56,12 @@ public class OrderUpControllerTest extends TestCase {
         CashierView cashier = new CashierView(in, out);
         KitchenView kitchen = new KitchenView(out);
         CustomerStatusView customer = new CustomerStatusView(in, out);
-        assertRejected(null, cashier, kitchen, customer, in, out);
-        assertRejected(model, null, kitchen, customer, in, out);
-        assertRejected(model, cashier, null, customer, in, out);
-        assertRejected(model, cashier, kitchen, null, in, out);
-        assertRejected(model, cashier, kitchen, customer, null, out);
-        assertRejected(model, cashier, kitchen, customer, in, null);
+        MainMenuView menu = new MainMenuView(in, out);
+        assertRejected(null, cashier, kitchen, customer, menu);
+        assertRejected(model, null, kitchen, customer, menu);
+        assertRejected(model, cashier, null, customer, menu);
+        assertRejected(model, cashier, kitchen, null, menu);
+        assertRejected(model, cashier, kitchen, customer, null);
     }
 
 
@@ -310,9 +312,9 @@ public class OrderUpControllerTest extends TestCase {
         int first = placeOrder();
         int second = placeOrder();
         int rush = placeRushOrder();
+        assertEquals(1, timesShown(rushPlaced(rush)));
         cashierSays.showOrderPlaced(rush);
-        assertTrue(shown(said()));
-        assertEquals(1, timesShown(OrderUpController.RUSH_NOTE));
+        assertFalse(shown(said()));
         assertEquals(3, model.waitingCount());
         assertEquals(rush, model.peekNext().getTicketNumber());
         assertTrue(model.peekNext().isRush());
@@ -329,7 +331,9 @@ public class OrderUpControllerTest extends TestCase {
         int first = placeOrder();
         controller.handleAddItem(1, 1);
         controller.handleSubmitOrder(false);
-        assertEquals(0, timesShown(OrderUpController.RUSH_NOTE));
+        cashierSays.showOrderPlaced(first + 1);
+        assertTrue(shown(said()));
+        assertEquals(0, timesShown(rushPlaced(first + 1)));
         assertEquals(2, model.waitingCount());
         assertEquals(first, model.peekNext().getTicketNumber());
         assertFalse(model.peekNext().isRush());
@@ -342,7 +346,6 @@ public class OrderUpControllerTest extends TestCase {
     public void testSubmitEmptyRushOrder() {
         controller.handleSubmitOrder(true);
         assertEquals(1, timesShown(error(OrderUpController.EMPTY_ORDER)));
-        assertEquals(0, timesShown(OrderUpController.RUSH_NOTE));
         assertEquals(0, model.waitingCount());
     }
 
@@ -358,8 +361,7 @@ public class OrderUpControllerTest extends TestCase {
         int first = placeOrder();
         int second = placeOrder();
         controller.handleCancelOrder(first);
-        assertEquals(1, timesShown(OrderUpController.ORDER_CANCELLED
-            + first));
+        assertEquals(1, timesShown(cancelled(first)));
         assertEquals(OrderStatus.CANCELLED, model.getStatus(first)
             .getStatus());
         assertEquals(1, model.waitingCount());
@@ -376,7 +378,8 @@ public class OrderUpControllerTest extends TestCase {
         controller.handleCancelOrder(ticket + 1000);
         controller.handleCancelOrder(-3);
         assertEquals(2, timesShown(error(OrderUpController.NO_SUCH_ORDER)));
-        assertEquals(0, timesShown(OrderUpController.ORDER_CANCELLED));
+        assertEquals(0, timesShown(cancelled(ticket + 1000)));
+        assertEquals(0, timesShown(cancelled(-3)));
         assertEquals(1, model.waitingCount());
         assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
     }
@@ -390,7 +393,7 @@ public class OrderUpControllerTest extends TestCase {
         controller.handleCompleteNext();
         controller.handleCancelOrder(ticket);
         assertEquals(1, timesShown(error(OrderUpController.NOT_WAITING)));
-        assertEquals(0, timesShown(OrderUpController.ORDER_CANCELLED));
+        assertEquals(0, timesShown(cancelled(ticket)));
         assertEquals(OrderStatus.READY, model.getStatus(ticket).getStatus());
     }
 
@@ -402,8 +405,7 @@ public class OrderUpControllerTest extends TestCase {
         int ticket = placeOrder();
         controller.handleCancelOrder(ticket);
         controller.handleCancelOrder(ticket);
-        assertEquals(1, timesShown(OrderUpController.ORDER_CANCELLED
-            + ticket));
+        assertEquals(1, timesShown(cancelled(ticket)));
         assertEquals(1, timesShown(error(OrderUpController.NOT_WAITING)));
         assertEquals(OrderStatus.CANCELLED, model.getStatus(ticket)
             .getStatus());
@@ -529,6 +531,21 @@ public class OrderUpControllerTest extends TestCase {
 
 
     /**
+     * A cancelled order shows as cancelled, not as not found.
+     */
+    public void testStatusLookupCancelled() {
+        int ticket = placeOrder();
+        controller.handleCancelOrder(ticket);
+        controller.handleStatusLookup(ticket);
+        customerSays.showStatus(ticket, OrderStatus.CANCELLED,
+            StatusInfo.NOT_IN_LINE);
+        assertEquals(1, timesShown(said()));
+        customerSays.showNotFound(ticket);
+        assertEquals(0, timesShown(said()));
+    }
+
+
+    /**
      * A ticket number that was never issued shows as not found.
      */
     public void testStatusLookupNotFound() {
@@ -618,8 +635,8 @@ public class OrderUpControllerTest extends TestCase {
             }
         };
         controller = new OrderUpController(model, new CashierView(in,
-            printer), broken, new CustomerStatusView(in, printer), in,
-            printer);
+            printer), broken, new CustomerStatusView(in, printer),
+            new MainMenuView(in, printer));
         controller.run();
         assertEquals(1, timesShown(OrderUpController.UNEXPECTED));
         assertEquals(1, timesShown(error(OrderUpController.EMPTY_ORDER)));
@@ -635,7 +652,7 @@ public class OrderUpControllerTest extends TestCase {
      * A cashier can start an order, add an item, and submit it.
      */
     public void testRunPlaceOrder() {
-        connect("1\n2\n1\n2\n3\n0\n");
+        connect("1\n2\n1\n2\n3\nn\n0\n");
         controller.run();
         cashierSays.showNewOrderStarted();
         assertTrue(shown(said()));
@@ -654,7 +671,7 @@ public class OrderUpControllerTest extends TestCase {
      * again.
      */
     public void testRunRepromptsItemNumber() {
-        connect("2\nabc\n\n1\n2\n3\n0\n");
+        connect("2\nabc\n\n1\n2\n3\nn\n0\n");
         controller.run();
         assertEquals(2, timesShown(error(OrderUpController.NOT_A_NUMBER)));
         cashierSays.showItemAdded(model.getMenu().get(0), 2);
@@ -668,7 +685,7 @@ public class OrderUpControllerTest extends TestCase {
      * again.
      */
     public void testRunRepromptsMissingItem() {
-        connect("2\n0\n1\n1\n3\n0\n");
+        connect("2\n0\n1\n1\n3\nn\n0\n");
         controller.run();
         assertEquals(1, timesShown(error(OrderUpController.NO_SUCH_ITEM)));
         assertEquals(1, model.waitingCount());
@@ -680,7 +697,7 @@ public class OrderUpControllerTest extends TestCase {
      * asked for again.
      */
     public void testRunRepromptsQuantity() {
-        connect("2\n1\ntwo\n0\n5\n3\n0\n");
+        connect("2\n1\ntwo\n0\n5\n3\nn\n0\n");
         controller.run();
         assertEquals(1, timesShown(error(OrderUpController.NOT_A_NUMBER)));
         assertEquals(1, timesShown(error(OrderUpController.BAD_QUANTITY)));
@@ -801,30 +818,146 @@ public class OrderUpControllerTest extends TestCase {
     // ----------------------------------------------------------
 
     /**
-     * A cashier can submit a rush order from the main menu.
+     * Answering y to the rush question submits a rush order, which goes
+     * ahead of the regular order already waiting.
      */
     public void testRunRushOrder() {
         int regular = placeOrder();
-        connect("2\n1\n1\n7\n0\n");
+        connect("2\n1\n1\n3\ny\n0\n");
         controller.run();
-        assertEquals(1, timesShown(OrderUpController.RUSH_NOTE));
         assertEquals(2, model.waitingCount());
         assertTrue(model.peekNext().isRush());
+        assertEquals(1, timesShown(rushPlaced(model.peekNext()
+            .getTicketNumber())));
         assertEquals(2, model.getStatus(regular).getPosition());
         assertEquals(1, timesShown(OrderUpController.GOODBYE));
     }
 
 
     /**
-     * A rush submit with nothing in the order is an error and the menu
-     * comes back.
+     * "yes" in any case and with spaces around it also means rush.
      */
-    public void testRunEmptyRushOrder() {
-        connect("7\n0\n");
+    public void testRunRushOrderYesWord() {
+        connect("2\n1\n1\n3\n  YeS  \n0\n");
+        controller.run();
+        assertEquals(1, model.waitingCount());
+        assertTrue(model.peekNext().isRush());
+        assertEquals(0, timesShown(error(OrderUpController.NOT_YES_NO)));
+    }
+
+
+    /**
+     * Answering n submits a regular order that waits behind the orders
+     * already in line.
+     */
+    public void testRunRushAnswerNo() {
+        int regular = placeOrder();
+        connect("2\n1\n1\n3\nn\n0\n");
+        controller.run();
+        assertEquals(2, model.waitingCount());
+        assertEquals(regular, model.peekNext().getTicketNumber());
+        assertFalse(model.peekNext().isRush());
+        cashierSays.showOrderPlaced(regular + 1);
+        assertTrue(shown(said()));
+        assertEquals(2, model.getStatus(regular + 1).getPosition());
+    }
+
+
+    /**
+     * "no" in capitals also means a regular order.
+     */
+    public void testRunRushAnswerNoWord() {
+        connect("2\n1\n1\n3\nNO\n0\n");
+        controller.run();
+        assertEquals(1, model.waitingCount());
+        assertFalse(model.peekNext().isRush());
+    }
+
+
+    /**
+     * A blank answer or "maybe" is an error and the question is asked
+     * again; a later y still submits a rush order.
+     */
+    public void testRunRushRepromptsBlankAndMaybe() {
+        connect("2\n1\n1\n3\n\nmaybe\ny\n0\n");
+        controller.run();
+        assertEquals(2, timesShown(error(OrderUpController.NOT_YES_NO)));
+        assertEquals(1, model.waitingCount());
+        assertTrue(model.peekNext().isRush());
+    }
+
+
+    /**
+     * After three bad answers nothing is submitted, but the items stay on
+     * the order so it can be submitted later.
+     */
+    public void testRunRushGivesUp() {
+        connect("2\n1\n1\n3\nmaybe\n\nsure\n3\nn\n0\n");
+        controller.run();
+        assertEquals(OrderUpController.MAX_TRIES, timesShown(error(
+            OrderUpController.NOT_YES_NO)));
+        assertEquals(1, timesShown(error(OrderUpController.TOO_MANY_TRIES)));
+        assertEquals(1, model.waitingCount());
+        assertFalse(model.peekNext().isRush());
+    }
+
+
+    /**
+     * If the input runs out at the rush question, nothing is submitted and
+     * the program ends without crashing.
+     */
+    public void testRunInputEndsAtRushPrompt() {
+        connect("2\n1\n1\n3\n");
+        controller.run();
+        assertEquals(1, timesShown(error(OrderUpController.TOO_MANY_TRIES)));
+        assertEquals(0, model.waitingCount());
+        assertEquals(1, model.getCurrentItems().size());
+        assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * Submitting with nothing in the order is an error and the rush
+     * question is never asked.
+     */
+    public void testRunEmptyOrderSkipsRushQuestion() {
+        connect("3\ny\n0\n");
         controller.run();
         assertEquals(1, timesShown(error(OrderUpController.EMPTY_ORDER)));
-        assertEquals(0, timesShown(OrderUpController.RUSH_NOTE));
+        assertEquals(0, timesShown(error(OrderUpController.NOT_YES_NO)));
+        // The "y" is read as a main menu choice, which is not an option.
+        assertEquals(1, timesShown(OrderUpController.BAD_OPTION));
+        assertEquals(0, model.waitingCount());
         assertEquals(1, timesShown(OrderUpController.GOODBYE));
+    }
+
+
+    /**
+     * Option 7 shows the order being built, and it is empty again after
+     * the order is submitted.
+     */
+    public void testRunViewCurrentOrder() {
+        connect("7\n2\n1\n2\n7\n3\nn\n7\n0\n");
+        controller.run();
+        cashierSays.showCurrentOrder(new java.util.ArrayList<OrderItem>());
+        assertEquals(2, timesShown(said()));
+        java.util.List<OrderItem> one = new java.util.ArrayList<OrderItem>();
+        one.add(new OrderItem(model.getMenu().get(0), 2));
+        cashierSays.showCurrentOrder(one);
+        assertEquals(1, timesShown(said()));
+    }
+
+
+    /**
+     * run() shows the main menu through MainMenuView.
+     */
+    public void testRunUsesMainMenuView() {
+        connect("0\n");
+        controller.run();
+        ByteArrayOutputStream menuText = new ByteArrayOutputStream();
+        new MainMenuView(new Scanner(""), new PrintStream(menuText))
+            .showMainMenu();
+        assertEquals(1, timesShown(menuText.toString()));
     }
 
 
@@ -837,8 +970,7 @@ public class OrderUpControllerTest extends TestCase {
         connect("8\nabc\n\n " + ticket + " \n0\n");
         controller.run();
         assertEquals(2, timesShown(error(OrderUpController.NOT_A_NUMBER)));
-        assertEquals(1, timesShown(OrderUpController.ORDER_CANCELLED
-            + ticket));
+        assertEquals(1, timesShown(cancelled(ticket)));
         assertEquals(OrderStatus.CANCELLED, model.getStatus(ticket)
             .getStatus());
         assertEquals(0, model.waitingCount());
@@ -923,6 +1055,138 @@ public class OrderUpControllerTest extends TestCase {
 
 
     // ----------------------------------------------------------
+    // handleShowMenu and handleViewCurrentOrder
+    // ----------------------------------------------------------
+
+    /**
+     * Showing the menu shows every item on it.
+     */
+    public void testShowMenu() {
+        controller.handleShowMenu();
+        cashierSays.showMenu(model.getMenu());
+        assertEquals(1, timesShown(said()));
+    }
+
+
+    /**
+     * The current order starts empty.
+     */
+    public void testViewCurrentOrderEmpty() {
+        controller.handleViewCurrentOrder();
+        cashierSays.showCurrentOrder(model.getCurrentItems());
+        assertEquals(1, timesShown(said()));
+        assertTrue(model.getCurrentItems().isEmpty());
+    }
+
+
+    /**
+     * The current order shows the items added so far, in order.
+     */
+    public void testViewCurrentOrderWithItems() {
+        controller.handleAddItem(1, 2);
+        controller.handleAddItem(2, 1);
+        controller.handleViewCurrentOrder();
+        cashierSays.showCurrentOrder(model.getCurrentItems());
+        assertEquals(1, timesShown(said()));
+        assertEquals(2, model.getCurrentItems().size());
+    }
+
+
+    // ----------------------------------------------------------
+    // Handlers that take typed text (used by the JavaFX screens)
+    // ----------------------------------------------------------
+
+    /**
+     * Typed numbers, with spaces around them, add the item.
+     */
+    public void testAddItemText() {
+        controller.handleAddItem(" 1 ", "2");
+        cashierSays.showItemAdded(model.getMenu().get(0), 2);
+        assertTrue(shown(said()));
+        assertEquals(1, model.getCurrentItems().size());
+    }
+
+
+    /**
+     * Blank, missing, or non-numeric text is an error and adds nothing.
+     */
+    public void testAddItemTextNotANumber() {
+        controller.handleAddItem("", "1");
+        controller.handleAddItem("1", "two");
+        controller.handleAddItem(null, "1");
+        controller.handleAddItem("1", null);
+        assertEquals(4, timesShown(error(OrderUpController.NOT_A_NUMBER)));
+        assertTrue(model.getCurrentItems().isEmpty());
+    }
+
+
+    /**
+     * Typed text that is a number still gets the item and quantity checks.
+     */
+    public void testAddItemTextOutOfRange() {
+        controller.handleAddItem("99", "1");
+        controller.handleAddItem("1", "100");
+        assertEquals(1, timesShown(error(OrderUpController.NO_SUCH_ITEM)));
+        assertEquals(1, timesShown(error(OrderUpController.BAD_QUANTITY)));
+        assertTrue(model.getCurrentItems().isEmpty());
+    }
+
+
+    /**
+     * A typed ticket number shows that order's status.
+     */
+    public void testStatusLookupText() {
+        int ticket = placeOrder();
+        controller.handleStatusLookup(" " + ticket + " ");
+        customerSays.showStatus(ticket, OrderStatus.WAITING, 1);
+        assertEquals(1, timesShown(said()));
+    }
+
+
+    /**
+     * A blank or non-numeric ticket is an error for the customer.
+     */
+    public void testStatusLookupTextNotANumber() {
+        controller.handleStatusLookup("");
+        controller.handleStatusLookup("abc");
+        customerSays.showError(OrderUpController.NOT_A_NUMBER);
+        assertEquals(2, timesShown(said()));
+    }
+
+
+    /**
+     * A typed ticket number cancels that order; bad text changes nothing.
+     */
+    public void testCancelOrderText() {
+        int ticket = placeOrder();
+        controller.handleCancelOrder("x");
+        assertEquals(1, timesShown(error(OrderUpController.NOT_A_NUMBER)));
+        assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
+        controller.handleCancelOrder(String.valueOf(ticket));
+        assertEquals(1, timesShown(cancelled(ticket)));
+        assertEquals(OrderStatus.CANCELLED, model.getStatus(ticket)
+            .getStatus());
+    }
+
+
+    /**
+     * A typed ticket number remakes that order; bad text is an error for
+     * the cook and changes nothing.
+     */
+    public void testRemakeOrderText() {
+        int ticket = placeOrder();
+        controller.handleCompleteNext();
+        controller.handleRemakeOrder("");
+        kitchenSays.showError(OrderUpController.NOT_A_NUMBER);
+        assertEquals(1, timesShown(said()));
+        assertEquals(OrderStatus.READY, model.getStatus(ticket).getStatus());
+        controller.handleRemakeOrder(String.valueOf(ticket));
+        assertEquals(OrderStatus.WAITING, model.getStatus(ticket).getStatus());
+        assertEquals(1, model.getStatus(ticket).getPosition());
+    }
+
+
+    // ----------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------
 
@@ -939,7 +1203,7 @@ public class OrderUpControllerTest extends TestCase {
         Scanner in = new Scanner(input);
         controller = new OrderUpController(model, new CashierView(in,
             printer), new KitchenView(printer), new CustomerStatusView(in,
-                printer), in, printer);
+                printer), new MainMenuView(in, printer));
     }
 
 
@@ -1008,6 +1272,32 @@ public class OrderUpControllerTest extends TestCase {
 
 
     /**
+     * Gets the text the cashier view prints when a rush order is placed.
+     *
+     * @param ticket
+     *            the rush order's ticket number
+     * @return what the view prints for it
+     */
+    private String rushPlaced(int ticket) {
+        cashierSays.showRushOrderPlaced(ticket);
+        return said();
+    }
+
+
+    /**
+     * Gets the text the cashier view prints when an order is cancelled.
+     *
+     * @param ticket
+     *            the cancelled order's ticket number
+     * @return what the view prints for it
+     */
+    private String cancelled(int ticket) {
+        cashierSays.showOrderCancelled(ticket);
+        return said();
+    }
+
+
+    /**
      * Gets what the second set of views printed since the last call.
      *
      * @return the text a view printed
@@ -1061,21 +1351,18 @@ public class OrderUpControllerTest extends TestCase {
      *            the kitchen view argument
      * @param customer
      *            the customer status view argument
-     * @param in
-     *            the input argument
-     * @param out
-     *            the output argument
+     * @param menu
+     *            the main menu view argument
      */
     private void assertRejected(
         OrderUpModel m,
         CashierView cashier,
         KitchenView kitchen,
         CustomerStatusView customer,
-        Scanner in,
-        PrintStream out) {
+        MainMenuView menu) {
         Exception thrown = null;
         try {
-            new OrderUpController(m, cashier, kitchen, customer, in, out);
+            new OrderUpController(m, cashier, kitchen, customer, menu);
         }
         catch (IllegalArgumentException e) {
             thrown = e;

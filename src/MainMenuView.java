@@ -20,17 +20,20 @@ public class MainMenuView {
         this.out = out;
     }
 
-    /** Prints the list of actions, numbered 1-6, with 0 to quit. */
+    /** Prints the list of actions grouped by role, numbered 1-9, with 0 to quit. */
     public void showMainMenu() {
         out.println();
         out.println("=== Order Up! ===");
         out.println("Cashier");
         out.println("  1) Start new order");
         out.println("  2) Add item to order");
+        out.println("  7) View current order");
         out.println("  3) Submit order");
+        out.println("  8) Cancel an order");
         out.println("Kitchen");
         out.println("  4) Show next order");
         out.println("  5) Mark next order done");
+        out.println("  9) Remake a finished order");
         out.println("Customer");
         out.println("  6) Check order status");
         out.println("  0) Quit");

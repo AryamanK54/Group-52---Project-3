@@ -75,6 +75,53 @@ public class CashierView {
         out.println("Order placed! Ticket #" + ticket);
     }
 
+    /** @return the raw text the cashier typed when asked about rush; never null */
+    public String promptRush() {
+        return readLine("Rush order? (y/n): ");
+    }
+
+    /**
+     * Confirms a rush order was submitted.
+     *
+     * @param ticket the ticket number given to the order
+     */
+    public void showRushOrderPlaced(int ticket) {
+        out.println("Rush order placed! Ticket #" + ticket
+                + " goes ahead of the regular orders.");
+    }
+
+    /**
+     * Confirms an order was cancelled.
+     *
+     * @param ticket the ticket number of the cancelled order
+     */
+    public void showOrderCancelled(int ticket) {
+        out.println("Order cancelled. Ticket #" + ticket);
+    }
+
+    /**
+     * Shows the items on the order being built, with a line total for each
+     * and the order total, or says the order is empty.
+     *
+     * @param items the items added so far, in the order they were added
+     */
+    public void showCurrentOrder(List<OrderItem> items) {
+        out.println();
+        out.println("--- Current order ---");
+        if (items.isEmpty()) {
+            out.println("  (no items yet)");
+            return;
+        }
+        double total = 0;
+        for (OrderItem oi : items) {
+            out.println("  " + oi.getQuantity() + " x "
+                    + oi.getMenuItem().getName() + "  $"
+                    + String.format("%.2f", oi.getLineTotal()));
+            total += oi.getLineTotal();
+        }
+        out.println("  Total: $" + String.format("%.2f", total));
+    }
+
     /**
      * Shows an error message.
      *

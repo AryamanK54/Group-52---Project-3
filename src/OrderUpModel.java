@@ -72,6 +72,18 @@ public class OrderUpModel {
 
 
     /**
+     * Gets the items added to the order being built, in the order they were
+     * added. The list can be read but not changed, and it is empty once the
+     * order is submitted or a new order is started.
+     *
+     * @return a read-only view of the order being built
+     */
+    public List<OrderItem> getCurrentItems() {
+        return Collections.unmodifiableList(draft);
+    }
+
+
+    /**
      * Adds an item to the order being built.
      *
      * @param item

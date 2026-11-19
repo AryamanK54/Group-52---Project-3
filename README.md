@@ -1,90 +1,129 @@
 # OrderUp!
-Repo for CS 2114, project 3 (Group 52). Order Up! is ordering software for a food truck or other small restaurant, written in Java. This checkpoint is a console program; the final product will have three JavaFX views (cashier, kitchen, customer).
+Repo for CS 2114, project 3 (Group 52). Order Up! is ordering software for a food truck or other small restaurant, written in Java. It has one model and one controller with two sets of views: a console version and a JavaFX version with separate Cashier, Kitchen, and Customer screens.
 
-## Running it
+## Project layout
 
-- **Program:** run `OrderUpApp.main`. The main menu offers: 1 start a new order, 2 add an item, 3 submit the order, 4 show the next order (kitchen), 5 complete the next order (kitchen), 6 check an order's status (customer), 7 or `q` to quit.
-- **Placing an order takes three steps:** start it (1), add one or more items (2), then submit it (3). Only a submitted order gets a ticket number and appears in the kitchen line (4).
-- **Tests:** there are six test classes (`MenuItemTest`, `OrderTest`, `KitchenQueueTest`, `OrderBookTest`, `OrderUpModelTest`, `OrderUpControllerTest`), 144 tests in all, and they all pass. Three of them extend `student.TestCase`, which needs Java 17 (the JRE bundled with Eclipse). On Java 24 or later they fail before running, because `student.jar` installs a Security Manager and those versions removed it. The other three use JUnit 5, so Eclipse needs JUnit 5 on the build path.
+- `src/` holds the model, the controller, the console views, `OrderUpApp` (console `main`), and all the tests. It compiles without JavaFX.
+- `fx/` holds the JavaFX screens and `OrderUpFxApp` (JavaFX `main`). Only this folder needs JavaFX.
+- `lib/junit-platform-console-standalone-1.14.4.jar` runs the tests from the command line.
+
+## How to compile and run
+
+Run these commands from the repository folder. They are written for Windows (PowerShell or Command Prompt). On macOS or Linux, use `:` instead of `;` between classpath entries, and use `/` instead of `\` in paths.
+
+**Console version** (needs only a JDK, version 17 or newer):
+
+```
+javac -d bin -sourcepath src src\OrderUpApp.java
+java -cp bin OrderUpApp
+```
+
+The console menu is grouped by role. Cashier: 1 start a new order, 2 add an item, 7 view the current order, 3 submit the order (it then asks "Rush order? (y/n)"), 8 cancel an order. Kitchen: 4 show the next order, 5 mark the next order done, 9 remake a finished order. Customer: 6 check an order's status. 0 or `q` quits. An order gets a ticket number and appears in the kitchen line only after it is submitted.
+
+**JavaFX version** (needs the JavaFX SDK, for example OpenJFX 21 from https://gluonhq.com/products/javafx/; replace `C:\javafx-sdk-21\lib` with the `lib` folder of your copy):
+
+```
+javac -d bin --module-path C:\javafx-sdk-21\lib --add-modules javafx.controls -sourcepath src fx\*.java
+java --module-path C:\javafx-sdk-21\lib --add-modules javafx.controls -cp bin OrderUpFxApp
+```
+
+The buttons along the top switch between the Cashier, Kitchen, and Customer screens. Each screen only has the actions for that role. For example, "Complete next order" is only on the Kitchen screen.
+
+**Tests.** Three test classes extend `student.TestCase`, so you need `student.jar` from the CS 2114 support files; replace `C:\path\to\student.jar` with where yours is. Those three classes need **Java 17** to run, because `student.jar` installs a Security Manager, which Java 24 and later removed. Eclipse's bundled Java 17 works. Compile with `--release 17`, then run with a Java 17 `java`:
+
+```
+javac --release 17 -d bin -cp "lib\junit-platform-console-standalone-1.14.4.jar;C:\path\to\student.jar" src\*.java
+java -jar lib\junit-platform-console-standalone-1.14.4.jar execute --class-path "bin;C:\path\to\student.jar" --scan-class-path bin
+```
+
+The result is 233 tests found and 233 successful across seven classes: `LinkedDequeTest`, `KitchenQueueTest`, `OrderTest`, `MenuItemTest`, `OrderBookTest`, `OrderUpModelTest`, and `OrderUpControllerTest`. In Eclipse, add `student.jar` and JUnit 5 to the build path, set the JRE to Java 17, and run the `src` folder as a JUnit test.
 
 ## Reflection
-What changed from the specification:
 
-- **Classes.** The spec called for seven model classes: `OrderUpModel`, `KitchenQueue`, `OrderBook`, `Order`, `OrderItem`, `MenuItem`, and `OrderStatus`. We built those seven plus `StatusInfo`, a small immutable class holding a ticket number, a status, and a queue position. The spec said `getStatus` "returns the order's status and queue position" but never named a return type, and a single value could not carry both. On the view side we added a fourth view, `MainMenuView`, and an `OrderUpApp` class with `main` that builds the model, views, and controller. There is still no inheritance anywhere, which matches the design: every arrow in the system diagram is a uses/holds relationship.
+### How did our design absorb the change?
 
-- **Fields.** The spec gave `OrderUpModel` a `currentOrder: Order` that is replaced after every submit. That conflicted with another spec decision: `Order.ticketNumber` is `final` and set at construction, and a ticket should only be issued at submit time. We replaced `currentOrder` with a `final List<OrderItem> draft`. The `Order` is built inside `submitOrder()` once the ticket is known, so an abandoned draft never uses up a ticket number. `OrderBook` uses a `LinkedHashMap` so history stays in submission order, and its `nextTicket` counter is a private field. `OrderItem` (not given fields in the spec) holds a final `MenuItem` and a final `int` quantity. The controller holds the three views, the shared `Scanner`, and a `PrintStream` as well as the model, because it runs the console loop.
+Our change feature is **rush orders**, as named in our Deliverable 3 Next Steps. The cashier can mark an order as rush. A rush order goes ahead of all regular orders, but behind any remakes and any earlier rush orders, so the line is always [remakes][rush orders][regular orders].
 
-- **Method signatures.**
-  1. `KitchenQueue.isEmpty()` was added.
-  2. `KitchenQueue.size()`, `peekFront()`, and `positionOf()` ignore cancelled orders, and `dequeueFront()` discards cancelled orders that reach the front. This is how we implemented the "flag, never remove" decision without splicing the middle of the deque.
-  3. `KitchenQueue.enqueue` and `addRemakeToFront` also throw `IllegalArgumentException` if the order is not WAITING. The spec only said null.
-  4. `OrderUpModel` gained `startNewOrder()` (for the controller's `handleNewOrder`), `remakeOrder(int ticket)` (the model-level entry point for `addRemakeToFront`), and `cancelOrder(int ticket)` (pulled forward from the stretch goals). `addToOrder` also rejects an item that is not on the menu.
-  5. `OrderBook` gained `register(Order)`, which the diagram labels "register / look up" but the spec's method list left out.
-  6. `Order` gained `MIN_QTY` and `MAX_QTY` constants (1 and 99), read-only getters, `isEmpty()`, `getTotal()`, and a public `setStatus()`.
-  7. `OrderItem` exposes `getMenuItem()`, `getQuantity()`, and `getLineTotal()`. `StatusInfo` exposes `getTicket()`, `getStatus()`, `getPosition()`, and the constant `NOT_IN_LINE` (-1).
-  8. The view prompt methods return the raw text the user typed (`String`), not an `int` as the diagram shows. The spec says the controller catches letters and blank entries, which it cannot do if the view has already parsed the input.
-  9. The spec's `validateQuantity` description said `1 < q < 99`, which would wrongly reject 1 and 99. The intended rule, which the controller and model both use, is 1 to 99 inclusive.
+Classes the feature actually touched, compared with our D3 prediction:
 
-- **Where validation lives.** The design split was: the controller catches malformed input (letters, blank entries, a menu choice that doesn't exist, a non-numeric ticket) and re-prompts up to three times, and the model enforces business rules. We built the model side as a full safety net. It throws `IllegalArgumentException` for null items, items not on the menu, out-of-stock items, and quantities outside 1 to 99. It throws `IllegalStateException` for submitting an empty order, completing from an empty line, and cancelling or remaking an order in the wrong state. An unknown ticket in `getStatus` is still a normal outcome (`NOT_FOUND`), but `cancelOrder` and `remakeOrder` throw on an unknown ticket because there is no sensible default there. Inside the model the 1-99 range is enforced in one place, the `OrderItem` constructor, which both `Order.addItem` and `OrderUpModel.addToOrder` go through. The controller's `validateQuantity` checks the same range first so it can show a friendly message.
+| Class | Predicted? | What changed |
+| --- | --- | --- |
+| `Order` | Yes | `rush` field, `Order(int ticket, boolean rush)` constructor, `isRush()`. The old constructor still makes a regular order. |
+| `KitchenQueue` | Yes | `enqueueRush(Order)`. `addRemakeToFront` now marks the start of the priority region. |
+| `LinkedDeque` | **No (new class)** | Our own generic doubly linked deque, which replaced `java.util.ArrayDeque`. It keeps a pointer to the last node of the priority region, so a rush insert takes constant time and rush orders stay in submission order. |
+| `OrderUpModel` | Yes | `submitOrder(boolean rush)`; `submitOrder()` calls it with `false`, so existing callers did not change. |
+| `OrderUpController` | Yes | `handleSubmitOrder(boolean)` and the "Rush order? (y/n)" prompt, with the same three-tries rule as the other prompts. |
+| `CashierView` | Yes | `promptRush()` (returns the raw text) and `showRushOrderPlaced(ticket)`. `showOrderPlaced` is unchanged. |
+| Tests | Yes | `KitchenQueueTest`, the new `LinkedDequeTest`, `OrderUpModelTest`, `OrderUpControllerTest`. |
 
-- **Test cases.** The spec's test plan had four methods. Our tests cover them and add more, but several details differ from the plan:
-  1. The plan said all tests run against model classes only. We also wrote `OrderUpControllerTest`, which drives the controller with scripted input and checks what the views print.
-  2. The plan used `cancelOrder(String orderId)` returning false on bad input. We built `cancelOrder(int ticket)` returning void and throwing, because tickets are `int` everywhere else in the design and exceptions match how the rest of the model reports invalid state.
-  3. The plan's "already marked Completed" is the READY status in the enum. `addRemakeToFront` rejects any order that is not WAITING, and the model's `remakeOrder` only accepts READY orders.
-  4. The plan said `dequeue` on an empty queue could return null or throw. We chose to throw (`NoSuchElementException` from the queue, `IllegalStateException` from the model), and peek returns null.
-  5. The plan's "an order with negative/zero quantities" bad input for `enqueue` can no longer happen, because `Order.addItem` refuses to create such an order. That case is tested at `addItem` instead.
+**What matched:** every class we predicted would change did change, and in the way we described. No class we said should *not* change had to change for rush orders: `KitchenView`, `OrderBook`, `MenuItem`, `OrderItem`, `OrderStatus`, and `StatusInfo` are untouched since the Deliverable 3 checkpoint (commit `1c8ff92`). `CustomerStatusView` gained one `case` since then, but for our cancellation stretch goal, not for rush: it showed a cancelled order as "not found", and it now says "was cancelled". Rush orders needed nothing from it, since the customer screen already showed whatever position the controller passed in.
 
-- **Did the model really stand alone?** Yes. Every model class imports only `java.util` and other model classes. No model class prints, reads input, or refers to a view or controller, and `OrderUpModelTest`, `KitchenQueueTest`, `OrderBookTest`, `OrderTest`, and `MenuItemTest` all run with no UI at all. Nothing had to be moved across the line to make the model run. Putting the pieces together did expose mismatches between files written separately: `KitchenQueue` was in its own package while everything else was not, `OrderStatus` lacked the `CANCELLED` value the model uses, and `Order`, `OrderItem`, and `StatusInfo` were missing constants and methods that the model, controller, and tests expected. We fixed those before the checkpoint. Places that are still less clean than the design says:
-  1. `MenuItem.toString()` and `Order.toString()` format prices and status, which is presentation. The views build their own display strings from the getters, so these are only for debugging.
-  2. `getMenu()` returns an unmodifiable list, but the `MenuItem` objects inside are the real ones and `setInStock` is public. A view holding a reference could change stock, which breaks the "views never change state" rule. We rely on convention here; a package-private setter would fix it.
-  3. `addToOrder` checks `menu.contains(item)` by object identity, so the controller must pass the exact `MenuItem` objects returned by `getMenu()`, not copies. This will matter when wiring up a JavaFX list.
-  4. On the controller/view line: the controller prints the main menu itself instead of using `MainMenuView`, which is display work sitting in the controller. `MainMenuView` is currently unused.
+**What surprised us:** the queue itself. We predicted "an insertion rule" in `KitchenQueue`, but a rush order has to land in the *middle* of the line, and our D3 queue (an `ArrayDeque`) can only add at the two ends. The course also requires our own queue implementation. So the feature brought in a new class, `LinkedDeque`, with a boundary pointer for the priority region. That changed how remakes are added too, since a remake now has to start or extend that region.
 
-- **What happened to our unknowns?** Our scoping document listed three.
-  1. *The exact system architecture and how our methods relate.* Figured out. The specification's MVC diagram, with `OrderUpModel` as the single entry point to the model, is what we built, with the changes listed above.
-  2. *How we will present the program to the user.* Partly figured out. This checkpoint uses console views, and the controller re-prompts on bad input. The JavaFX design for the final product is still open.
-  3. *Whether we can finish our stretch goals.* Still open. Cancellation is built and tested in the model but not reachable from the menu yet. Priced receipts have a start (`Order.getTotal()`), and the end-of-day summary is not started.
+### Did the change cross the model/view line?
 
-- **What doesn't work yet?**
-  1. **Cancel and remake are not reachable from the program.** Both are built and tested in the model, but the controller has no menu option for them.
-  2. **Cancelled orders display wrongly.** `CustomerStatusView.showStatus` would show a CANCELLED order as "not found" instead of "Cancelled".
-  3. **The cashier can't see the order being built.** "Start new order" only clears the draft. Nothing appears in the kitchen until the order is submitted, and there is no option to view the draft before submitting, which confused us during testing.
-  4. **No persistence.** Every run starts with an empty order book.
-  5. **Not built yet:** priced receipts, the end-of-day sales summary, and the JavaFX views.
+Barely, and only in the read-only direction. The model learned nothing about any view. The only new thing a view reads from the model is `Order.isRush()`, which the JavaFX kitchen screen uses to tag a rush order "(RUSH)". The console `KitchenView` did not change at all. The controller's `handleSubmitOrder(boolean)` is shared by both UIs: the console answers it with a y/n prompt and the JavaFX screen with a "Rush order" checkbox, and neither difference reached the model.
+
+There was one ripple along the way, which we fixed. The first version of the controller printed the rush confirmation and the cancel confirmation with its own `println`, because `CashierView` had no method for them yet. We added `showRushOrderPlaced` and `showOrderCancelled` to `CashierView` and wired the controller's main menu through `MainMenuView`. The controller now never prints or reads anything itself.
+
+### What changed from our D3 plan?
+
+- **Queue implementation.** D3 used `java.util.ArrayDeque`. We now use our own `LinkedDeque` (see above), with `KitchenQueue`'s public methods unchanged, so the earlier tests still pass.
+- **How the cashier picks rush.** D3 said "`handleSubmitOrder` (or a new `handleSubmitRush`)" plus a prompt. The first version added a separate "submit as rush" menu option. We replaced it with a "Rush order? (y/n)" question after Submit, which accepts y, yes, n, or no in any case and re-prompts on anything else (blank, "maybe") up to three times. If the prompt gives up, nothing is submitted and the items stay on the order.
+- **View current order.** D3 listed this as the most confusing gap. It needed a model change we had not planned: `OrderUpModel.getCurrentItems()`, a read-only view of the order being built. There is a new `CashierView.showCurrentOrder` and a controller handler (console option 7, and a JavaFX button).
+- **Main menu.** `MainMenuView` is now used. The controller's constructor takes it instead of a `Scanner` and `PrintStream`.
+- **Cancel and remake are reachable.** In D3 they were model-only. They are now console options 8 and 9 and buttons on the Cashier and Kitchen screens.
+- **JavaFX started early.** `fx/` has three working screens that call the same controller methods as the console. To keep the controller in charge of validation, we added controller handlers that take typed text (`handleAddItem(String, String)`, `handleStatusLookup(String)`, `handleCancelOrder(String)`, `handleRemakeOrder(String)`).
+- **Tests.** We went from 144 to 233 tests. They cover the deque on its own, interleaved enqueue/rush/remake/dequeue sequences checked after every step, cancelled rush orders, every rush-prompt answer (y, yes, n, NO, blank, "maybe", three bad answers, input ending at the prompt), the view-current-order option, the typed-text handlers, and a cancelled order's status lookup.
+
+### What doesn't work yet?
+
+1. **The JavaFX screens don't refresh themselves.** The kitchen screen refreshes when you switch to it or press "Show next order", and the customer screen updates only when you press "Check status". There is no live update between screens.
+2. **No way to change stock from either UI.** Out-of-stock items are rejected and marked on the menu, but only code can mark an item out of stock.
+3. **No persistence.** Every run starts with an empty order book.
+4. **Not built:** priced receipts and the end-of-day sales summary.
+5. **Not unit tested:** the JavaFX screens, which is intended since the tests target the model and controller. We checked the JavaFX screens with a scripted click-through instead.
+
+### What design change would make the next feature cheaper?
+
+Give the queue a general priority-insert rule instead of one special case per feature. Right now `LinkedDeque` knows about exactly one priority region (remakes and rush orders) through `addFirstPriority` and `addAfterPriority`. A third kind of order, such as a mobile pickup lane or VIP orders, would need yet another special-case method and pointer. If each `Order` had a priority level (for example remake = 0, rush = 1, regular = 2) and the deque kept a "last node" pointer per level, a new kind of order would only need a new level. `KitchenQueue` and the deque would not change again.
+
+A second cheaper path: the JavaFX screens extend the console view classes so that the controller didn't have to change. A small view interface per role would make adding a third UI, or a fake view for tests, simpler.
 
 ## Next Steps
 
-- **What is left to finish the MVP**, in order:
-  1. Make the cashier flow clearer: say what to do after starting an order, and add a way to view the current order before submitting.
-  2. Have the controller use `MainMenuView` for the main menu, or delete it.
-  3. Run the full flow by hand (cashier places an order, cook completes it, customer checks status) plus every bad-input case in the validation list, and fix what breaks.
-  4. Build the three JavaFX views as display-only classes that get everything from the controller, then hook each screen's buttons to controller methods.
+### What is left for the final build, in order
 
-- **Our change feature: rush orders.** The cashier can mark an order as "rush." A rush order goes to the front of the line, behind any remakes already at the front but ahead of normal orders.
+1. JavaFX polish: refresh the kitchen and customer screens after changes on another screen, tidy the layout, and disable buttons that can't do anything (such as Submit on an empty order).
+2. Fill in the placeholder Javadoc on `KitchenQueue.isEmpty()` and any other leftover comments.
+3. Stretch goals (see below).
+4. Final README update and attribution, then rehearse the demo.
 
-- **Queue Implementation** The project requires our own implementation for the queue data structure, not using a premade library. This discrepancy in understanding is something we have to correct
+### Stretch goals
 
-  _Predicted to change:_
-  - **Model:** `Order` gets a `rush` boolean field; `KitchenQueue` gets an insertion rule for rush orders; `OrderUpModel.submitOrder` gets a rush parameter or an overload.
-  - **Controller:** `handleSubmitOrder` (or a new `handleSubmitRush`) passes the flag along, plus a prompt for it.
-  - **View:** `CashierView` needs a rush prompt or toggle.
+- **Committing to:** order cancellation. This is done: it's in the model, the controller, the console menu, and the JavaFX Cashier screen, with tests.
+- **Dropping unless time allows:** priced receipts and the end-of-day sales summary. We will only attempt them after items 1 and 2 above are finished and tested.
 
-  _Predicted not to change:_ `KitchenView` and `CustomerStatusView`, because they already show whatever order is next and whatever position the controller passes in. Also `OrderBook`, `MenuItem`, `OrderItem`, `OrderStatus`, and `StatusInfo`. We will compare this prediction to what actually changes and report any difference.
+### What will our 3-minute demo show?
 
-- **Stretch goals**
-  - **Committing to:** order cancellation, our primary stretch goal. The model side (`cancelOrder`, the CANCELLED status, queue skipping) is already built and tested, so the remaining work is a controller handler, a cancel option in the cashier view, and showing "Cancelled" in the customer view.
-  - **Secondary / likely dropping:** priced receipts and the end-of-day sales summary. We will only attempt them if the MVP, cancellation, and rush orders are all finished and tested; otherwise they are dropped.
+We'll use the JavaFX version (`OrderUpFxApp`). Times are cumulative and leave a 10-second buffer.
 
-- **New tests needed**
-  1. Rush orders: a rush order lands ahead of normal orders but behind a remake; two rush orders stay in submission order; a rush order can be cancelled; positions are reported correctly.
-  2. Controller cancel: cancelling a waiting order, an unknown ticket, a READY order, an already-cancelled order, and non-numeric ticket input, all without crashing.
-  3. `CustomerStatusView` shows "Cancelled" for a cancelled order.
-  4. The new "view current order" option, including on an empty draft.
+| Time | Step |
+| --- | --- |
+| 0:00–0:15 | Launch the app; point out the Cashier / Kitchen / Customer buttons and that one model and controller sit behind all three screens. |
+| 0:15–0:45 | **Cashier:** select Cheeseburger, quantity 2, Add item; the current order shows 2 x Cheeseburger with a total. Submit, giving ticket #1. Add Fries and submit, giving ticket #2. |
+| 0:45–1:10 | **Bad input:** quantity `abc` shows an error; quantity `100` shows an error; Add item with nothing selected shows an error; Submit on an empty order shows an error. Nothing crashes. |
+| 1:10–1:35 | **Change feature:** add Lemonade, tick "Rush order", Submit, giving "Rush order placed! Ticket #3". |
+| 1:35–2:05 | **Kitchen:** ticket #3 (RUSH) is first even though it was submitted last; 3 waiting. Complete next order, so #3 is ready and #1 is next. Remake #3 and it goes back to the front. |
+| 2:05–2:30 | **Cancel + Customer:** on Cashier, cancel #2. On Customer, check #2 (cancelled), #1 (waiting, position 2), #99 (not found), and blank (error). |
+| 2:30–2:50 | **Tests:** show the test command's summary, with 233 tests found and 233 successful. |
 
-- **Who does what**
-  - Vanessa: rush orders in the model (`Order`, `KitchenQueue`, `OrderUpModel`) and their tests.
-  - Rishad: controller handlers for cancel and rush, and the controller tests for them.
-  - Aryaman: view changes (cancel and rush prompts, "Cancelled" status, current-order display, `MainMenuView`) and the JavaFX views.
+### Who does what
+
+- **Aryaman:** item 1 (JavaFX), item 4 (README and attribution), and running the demo.
+- **Vanessa:** item 2 (`KitchenQueue` Javadoc) and the model side of any stretch goal we attempt.
+- **Rishad:** the controller side of any stretch goal we attempt, and the controller tests for it.
+- **Everyone:** rehearse the demo with a stopwatch to keep it under 3:00.
 
 ## Attribution
 
@@ -94,28 +133,44 @@ What changed from the specification:
 | `OrderItem.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to fix integration mismatches |
 | `OrderStatus.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to add CANCELLED |
 | `StatusInfo.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to fix integration mismatches |
-| `Order.java` | Aryaman | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to add quantity constants |
-| `KitchenQueue.java` | Vanessa | GenAI-drafted from our spec; reviewed by Vanessa; revised with GenAI to remove a package mismatch |
-| `OrderUpModel.java` | Rishad | GenAI-drafted from our spec; reviewed by Rishad |
+| `Order.java` | Aryaman, Vanessa | Aryaman: GenAI-drafted from our spec. Vanessa: rush flag, GenAI-drafted from our plan; reviewed by Vanessa |
+| `LinkedDeque.java` | Vanessa | GenAI-drafted from our plan; reviewed by Vanessa |
+| `KitchenQueue.java` | Vanessa | GenAI-drafted from our spec and plan (rush insertion); reviewed by Vanessa |
 | `OrderBook.java` | Rishad | GenAI-drafted from our spec; reviewed by Rishad |
-| `OrderUpController.java` | Rishad | GenAI-drafted from our spec; reviewed by Rishad |
-| `OrderUpApp.java` | Rishad | GenAI-drafted from our spec; reviewed by Rishad |
-| `CashierView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman |
+| `OrderUpModel.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec and plan (rush, cancel, remake); reviewed by Rishad. Aryaman: `getCurrentItems()`, GenAI-drafted with Claude Code; reviewed by Aryaman |
+| `OrderUpController.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec and plan (handlers for rush, cancel, remake); reviewed by Rishad. Aryaman: rush y/n prompt, view current order, `MainMenuView` wiring, typed-text handlers, GenAI-drafted with Claude Code; reviewed by Aryaman |
+| `OrderUpApp.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our spec; reviewed by Rishad. Aryaman: `MainMenuView` wiring |
+| `CashierView.java` | Aryaman | GenAI-drafted from our spec and plan; reviewed by Aryaman |
 | `KitchenView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman |
-| `CustomerStatusView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman |
+| `CustomerStatusView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman; revised with Claude Code to show cancelled orders |
 | `MainMenuView.java` | Aryaman | GenAI-drafted from our spec; reviewed by Aryaman |
+| `fx/FxCashierView.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman; checked with a scripted click-through |
+| `fx/FxKitchenView.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman; checked with a scripted click-through |
+| `fx/FxCustomerStatusView.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman; checked with a scripted click-through |
+| `fx/OrderUpFxApp.java` | Aryaman | GenAI-drafted with Claude Code; reviewed by Aryaman |
 | `MenuItemTest.java` | Aryaman | GenAI-drafted from our test plan; ran and reviewed by Aryaman |
 | `OrderTest.java` | Aryaman | GenAI-drafted from our test plan; ran and reviewed by Aryaman |
-| `KitchenQueueTest.java` | Vanessa | GenAI-drafted from our test plan; ran and reviewed by Vanessa |
+| `LinkedDequeTest.java` | Vanessa | GenAI-drafted from our plan; ran and reviewed by Vanessa |
+| `KitchenQueueTest.java` | Vanessa | GenAI-drafted from our test plan and plan (rush tests); ran and reviewed by Vanessa |
 | `OrderBookTest.java` | Rishad | GenAI-drafted from our test plan; ran and reviewed by Rishad |
-| `OrderUpModelTest.java` | Rishad | GenAI-drafted from our test plan; ran and reviewed by Rishad |
-| `OrderUpControllerTest.java` | Rishad | GenAI-drafted from our test plan; ran and reviewed by Rishad |
-| `README.md` | Vanessa, Aryaman | GenAI-drafted; revised by Vanessa and Aryaman |
+| `OrderUpModelTest.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our test plan and plan; ran and reviewed by Rishad. Aryaman: `getCurrentItems` tests, GenAI-drafted with Claude Code |
+| `OrderUpControllerTest.java` | Rishad, Aryaman | Rishad: GenAI-drafted from our test plan and plan; ran and reviewed by Rishad. Aryaman: rush-prompt, view-current-order, main-menu, and typed-text tests, GenAI-drafted with Claude Code |
+| `README.md` | Vanessa, Aryaman, Rishad | GenAI-drafted; revised by the team |
 
 ## GenAI Note
 
 1. **Design review.** Claude reviewed our system diagram and helped us talk through the deque-versus-queue and flag-versus-remove decisions.
 2. **Specification text.** Claude helped draft the method-signature and validation sections of the spec from the system diagram, which we then edited.
-3. **Code and tests.** Claude drafted the model classes, the console views, the controller, and the test files from our spec and diagram. Each owner read over their files, and we ran the tests ourselves.
-4. **Integration check.** Because the files were drafted separately, they did not compile together at first. We used Claude Code to compile the whole project and run every test. It found five mismatches between files (a stray package declaration, the missing CANCELLED status, missing quantity constants, a renamed getter, and a different `StatusInfo` constructor) and one real bug (the model accepted a quantity of 100). With our approval it made those six fixes, after which all 144 tests passed.
-5. **README.** Claude drafted this README from our spec, the code, and the test results, and we edited it.
+3. **Code and tests.** Claude drafted the model classes, the console views, the controller, and the test files from our spec, diagram, and the Deliverable 4 task plan. Each owner reviewed their files and ran the tests.
+4. **Integration checks.** At the D3 checkpoint, Claude Code compiled the whole project, found five mismatches between separately drafted files and one bug, and fixed them with our approval. For Deliverable 4 it checked Vanessa's and Rishad's work against the task plan, compiled everything, and ran all the tests. With Aryaman's approval of each design decision, it then implemented the rush prompt, view current order, `MainMenuView` wiring, the new view methods, and the JavaFX screens, and checked the JavaFX screens with a scripted click-through.
+5. **README.** Claude drafted this README from our spec, the code, `git diff --stat` against the D3 checkpoint, and the test results, and we edited it.
+
+## Deliverable 3 checkpoint reflection (kept for reference)
+
+These notes describe what changed between our specification and the first prototype.
+
+- **Classes.** We built the seven model classes from the spec plus `StatusInfo`, which holds a ticket number, status, and queue position because `getStatus` has to return both a status and a position. We also added `MainMenuView` and `OrderUpApp`.
+- **Fields.** `OrderUpModel` keeps a `final List<OrderItem> draft` instead of the spec's `currentOrder: Order`. The `Order` is built at submit time once the ticket is known, so an abandoned order never uses up a ticket number.
+- **Signatures.** We added `KitchenQueue.isEmpty()`, `OrderBook.register(Order)`, `OrderUpModel.startNewOrder()`, `cancelOrder(int)`, and `remakeOrder(int)`. Prompt methods return raw text so the controller can catch letters and blanks. Quantities are 1 to 99 inclusive; the spec's `1 < q < 99` was a typo.
+- **Validation.** The controller catches malformed input and re-prompts up to three times. The model throws for business-rule violations as a safety net, and the 1–99 range is enforced in the `OrderItem` constructor.
+- **Model independence.** No model class prints, reads input, or refers to a view or controller, and the model tests run with no UI.
